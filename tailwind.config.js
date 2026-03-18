@@ -7,8 +7,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        'nmat-beige': '#F5F5DC', 
-        'nmat-black': '#1a1a1a',
+        // تعريف ألوان الهوية الخاصة بك
+        'nmat-bg': '#F7F8F9',    // الخلفية العاجية
+        'nmat-text': '#429163',  // النص الأخضر
       },
     },
   },
