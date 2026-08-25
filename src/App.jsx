@@ -3,10 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Minus, ShoppingCart, X, Coffee } from 'lucide-react';
 
 // بيانات المنتجات
+// الصور تُقرأ من مجلد public/ — المسار نسبي لقاعدة الموقع حتى يعمل تحت رابط GitHub Pages
+const img = (file) => `${import.meta.env.BASE_URL}${file}`;
+
 const menuData = [
-  { id: 1, name: 'فلات وايت', price: 18, category: 'قهوة ساخنة', image: '/flat-white.png', desc: 'إسبريسو غني مع حليب مبخر ناعم.' },
-  { id: 2, name: 'آيس سبانش لاتيه', price: 22, category: 'قهوة باردة', image: '/ice-spanish.png', desc: 'حليب مكثف محلى مع إسبريسو وحليب بارد.' },
-  { id: 3, name: 'كيكة العسل', price: 25, category: 'حلويات', image: '/honey-cake.png', desc: 'طبقات من الكيك الهش مع كريمة العسل الغنية.' },
+  { id: 1, name: 'فلات وايت', price: 18, category: 'قهوة ساخنة', image: img('flat-white.png'), desc: 'إسبريسو غني مع حليب مبخر ناعم.' },
+  { id: 2, name: 'آيس سبانش لاتيه', price: 22, category: 'قهوة باردة', image: img('ice-spanish.png'), desc: 'حليب مكثف محلى مع إسبريسو وحليب بارد.' },
+  { id: 3, name: 'كيكة العسل', price: 25, category: 'حلويات', image: img('honey-cake.png'), desc: 'طبقات من الكيك الهش مع كريمة العسل الغنية.' },
 ];
 
 const categories = ['الكل', 'قهوة ساخنة', 'قهوة باردة', 'حلويات'];
@@ -15,7 +18,8 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState('الكل');
-  
+  const [brokenImages, setBrokenImages] = useState({});
+
   // رقم الواتساب الخاص بك
   const whatsappNumber = "9665XXXXXXXXX"; 
 
@@ -74,7 +78,18 @@ export default function App() {
               className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-nmat-text/5 flex flex-col gap-5 hover:shadow-2xl transition-all duration-300 group"
             >
               <div className="aspect-[16/10] bg-nmat-bg rounded-3xl overflow-hidden flex-shrink-0 shadow-inner">
-                <img src={item.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={item.name} />
+                {brokenImages[item.id] ? (
+                  <div className="w-full h-full flex items-center justify-center text-nmat-text/25">
+                    <Coffee size={52} strokeWidth={1.25} />
+                  </div>
+                ) : (
+                  <img
+                    src={item.image}
+                    onError={() => setBrokenImages(prev => ({ ...prev, [item.id]: true }))}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    alt={item.name}
+                  />
+                )}
               </div>
               <div className="flex-grow space-y-2">
                 <div className="flex justify-between items-start gap-2">
