@@ -1,0 +1,1601 @@
+// مخطط قاعدة بيانات منصة «إتقان»
+//
+// قواعد حاكمة:
+//  1. كل جدول يخص مستأجرًا يحمل organizationId إلزاميًا.
+//  2. كل جدول مستأجر له فهرس مركّب يبدأ بـorganizationId.
+//  3. الحذف الناعم عبر deletedAt للبيانات التي لها قيمة تاريخية.
+//  4. version للتحكم في التزامن المتفائل على البيانات الحساسة.
+//  5. onDelete: Cascade من Organization لضمان عدم بقاء بيانات يتيمة.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: عنوان الاتصال ينتقل إلى prisma.config.ts، والعميل يُبنى بمحوّل
+// driver adapter. راجع src/server/db.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  المصادقة — جداول Better Auth
+// ═══════════════════════════════════════════════════════════════
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  phone         String?
+  locale        String    @default("ar")
+  isSuperAdmin  Boolean   @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  memberships     Membership[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  assignedActions CorrectiveAction[] @relation("ActionAssignee")
+  createdActions  CorrectiveAction[] @relation("ActionCreator")
+  inspections     Inspection[]       @relation("InspectionInspector")
+  comments        Comment[]
+  invitesSent     Invitation[]       @relation("InvitationInviter")
+  loginAttempts   LoginAttempt[]
+  supportTickets  SupportTicket[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // المنشأة النشطة للجلسة — مصدر الحقيقة الوحيد لعزل المستأجر
+  activeOrganizationId String?
+
+  // انتحال المستخدم للدعم — يتطلب صلاحية super admin وسببًا مكتوبًا
+  impersonatedBy String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  // مُصدِر الحساب — يميّز بين مزوّدي الهوية. تطلبه Better Auth 1.7+
+  issuer                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  ipAddress String?
+  userAgent String?
+  success   Boolean
+  reason    String?
+  createdAt DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt])
+  @@index([ipAddress, createdAt])
+  @@map("login_attempts")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  المستأجر — المنشأة والعلامات والفروع
+// ═══════════════════════════════════════════════════════════════
+
+enum BusinessType {
+  RESTAURANT
+  CAFE
+  FOOD_TRUCK
+  CLOUD_KITCHEN
+  MULTI_BRAND
+  OPERATOR
+}
+
+enum OrganizationStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+model Organization {
+  id           String             @id @default(cuid())
+  name         String
+  slug         String             @unique
+  businessType BusinessType       @default(RESTAURANT)
+  vatNumber    String?
+  crNumber     String?
+  logoUrl      String?
+  country      String             @default("SA")
+  city         String?
+  timezone     String             @default("Asia/Riyadh")
+  currency     String             @default("SAR")
+  status       OrganizationStatus @default(TRIAL)
+
+  // تقدّم التهيئة — يُحفظ حتى لو خرج المستخدم قبل الإكمال
+  onboardingStep      Int      @default(0)
+  onboardingCompleted Boolean  @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  version   Int       @default(0)
+
+  brands             Brand[]
+  branches           Branch[]
+  memberships        Membership[]
+  roles              Role[]
+  invitations        Invitation[]
+  subscription       Subscription?
+  invoices           Invoice[]
+  employees          Employee[]
+  checklistTemplates ChecklistTemplate[]
+  inspections        Inspection[]
+  correctiveActions  CorrectiveAction[]
+  tasks              Task[]
+  products           Product[]
+  productCategories  ProductCategory[]
+  recipes            Recipe[]
+  ingredients        Ingredient[]
+  suppliers          Supplier[]
+  inventoryItems     InventoryItem[]
+  inventoryCounts    InventoryCount[]
+  stockMovements     StockMovement[]
+  wasteRecords       WasteRecord[]
+  serviceOrders      ServiceOrder[]
+  recruitmentReqs    RecruitmentRequest[]
+  notifications      Notification[]
+  supportTickets     SupportTicket[]
+  auditLogs          AuditLog[]
+  attachments        Attachment[]
+  comments           Comment[]
+
+  @@index([status])
+  @@index([slug])
+  @@map("organizations")
+}
+
+model Brand {
+  id       String  @id @default(cuid())
+  name     String
+  nameEn   String?
+  slug     String
+  logoUrl  String?
+  // إعدادات تُورَّث للفروع ما لم يخصّصها الفرع
+  settings Json    @default("{}")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branches Branch[]
+  products Product[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, deletedAt])
+  @@map("brands")
+}
+
+enum BranchStatus {
+  ACTIVE
+  TEMPORARILY_CLOSED
+  UNDER_SETUP
+  CLOSED
+}
+
+model Branch {
+  id        String       @id @default(cuid())
+  name      String
+  nameEn    String?
+  code      String
+  status    BranchStatus @default(UNDER_SETUP)
+  city      String?
+  district  String?
+  address   String?
+  latitude  Float?
+  longitude Float?
+  phone     String?
+  email     String?
+  // ساعات العمل: { "sun": {"open":"08:00","close":"23:00","closed":false}, ... }
+  openingHours Json  @default("{}")
+  // تخصيصات تتجاوز إعدادات العلامة
+  settings     Json  @default("{}")
+  openedAt     DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  version   Int       @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Restrict)
+
+  managerId String?
+  manager   Employee? @relation("BranchManager", fields: [managerId], references: [id], onDelete: SetNull)
+
+  memberships       MembershipBranch[]
+  employees         Employee[]         @relation("EmployeeBranch")
+  inspections       Inspection[]
+  correctiveActions CorrectiveAction[]
+  tasks             Task[]
+  inventoryItems    InventoryItem[]
+  inventoryCounts   InventoryCount[]
+  stockMovements    StockMovement[]
+  wasteRecords      WasteRecord[]
+  serviceOrders     ServiceOrder[]
+  recruitmentReqs   RecruitmentRequest[]
+  schedules         ChecklistSchedule[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, deletedAt])
+  @@index([organizationId, brandId])
+  @@index([organizationId, status])
+  @@map("branches")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  الأدوار والصلاحيات والعضوية
+// ═══════════════════════════════════════════════════════════════
+
+enum RoleKey {
+  SUPER_ADMIN
+  OWNER
+  GENERAL_MANAGER
+  OPERATIONS_MANAGER
+  AREA_MANAGER
+  BRANCH_MANAGER
+  QUALITY_INSPECTOR
+  ACCOUNTANT
+  STAFF
+  VIEWER
+}
+
+model Role {
+  id          String  @id @default(cuid())
+  key         RoleKey
+  name        String
+  description String?
+  // أدوار النظام لا يمكن حذفها، لكن صلاحياتها قابلة للتخصيص
+  isSystem    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  permissions RolePermission[]
+  memberships Membership[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  // الصيغة: resource:action — مثل inspection:approve
+  key         String  @unique
+  resource    String
+  action      String
+  description String?
+
+  roles RolePermission[]
+
+  @@index([resource])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  granted      Boolean    @default(true)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+model Membership {
+  id     String           @id @default(cuid())
+  status MembershipStatus @default(ACTIVE)
+  title  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  // فارغ = وصول لكل فروع المنشأة
+  branches MembershipBranch[]
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, status])
+  @@map("memberships")
+}
+
+model MembershipBranch {
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  branchId     String
+  branch       Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([membershipId, branchId])
+  @@index([branchId])
+  @@map("membership_branches")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+model Invitation {
+  id        String           @id @default(cuid())
+  email     String
+  token     String           @unique
+  status    InvitationStatus @default(PENDING)
+  roleKey   RoleKey
+  branchIds String[]         @default([])
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+  acceptedAt DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  invitedById String
+  invitedBy   User   @relation("InvitationInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([token])
+  @@map("invitations")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  الاشتراكات والفوترة
+// ═══════════════════════════════════════════════════════════════
+
+enum PlanTier {
+  TRIAL
+  SINGLE_BRANCH
+  GROWTH
+  MULTI_BRANCH
+  ENTERPRISE
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+model Plan {
+  id           String   @id @default(cuid())
+  tier         PlanTier @unique
+  name         String
+  nameEn       String
+  description  String?
+  monthlyPrice Decimal  @db.Decimal(10, 2)
+  yearlyPrice  Decimal  @db.Decimal(10, 2)
+  currency     String   @default("SAR")
+  // حدود الاستخدام — تُفرض على الخادم
+  maxBranches  Int
+  maxUsers     Int
+  maxBrands    Int
+  isPublic     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  features      PlanFeature[]
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model PlanFeature {
+  id          String  @id @default(cuid())
+  // مفتاح الميزة — يُفحص على الخادم عبر entitlements
+  key         String
+  name        String
+  included    Boolean @default(true)
+  limitValue  Int?
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, key])
+  @@map("plan_features")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  GRACE
+  CANCELLED
+  EXPIRED
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  status             SubscriptionStatus @default(TRIALING)
+  cycle              BillingCycle       @default(MONTHLY)
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  graceEndsAt        DateTime?
+  cancelledAt        DateTime?
+  // معرّف الاشتراك لدى بوابة الدفع — لا يُخزَّن أي مفتاح سري هنا
+  providerRef        String?
+  providerName       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(0)
+
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  invoices Invoice[]
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  VOID
+  REFUNDED
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  number      String
+  status      InvoiceStatus @default(DRAFT)
+  subtotal    Decimal       @db.Decimal(10, 2)
+  vatRate     Decimal       @default(15.00) @db.Decimal(5, 2)
+  vatAmount   Decimal       @db.Decimal(10, 2)
+  discount    Decimal       @default(0) @db.Decimal(10, 2)
+  total       Decimal       @db.Decimal(10, 2)
+  currency    String        @default("SAR")
+  issuedAt    DateTime?
+  dueAt       DateTime?
+  paidAt      DateTime?
+  couponCode  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  payments Payment[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@map("invoices")
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id           String        @id @default(cuid())
+  amount       Decimal       @db.Decimal(10, 2)
+  currency     String        @default("SAR")
+  status       PaymentStatus @default(PENDING)
+  method       String?
+  providerRef  String?
+  providerName String?
+  failureCode  String?
+  processedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, status])
+  @@map("payments")
+}
+
+model Coupon {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  description   String?
+  percentOff    Int?
+  amountOff     Decimal?  @db.Decimal(10, 2)
+  maxRedemptions Int?
+  redemptions   Int       @default(0)
+  validFrom     DateTime  @default(now())
+  validUntil    DateTime?
+  isActive      Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code, isActive])
+  @@map("coupons")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  الموظفون والتوظيف
+// ═══════════════════════════════════════════════════════════════
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+}
+
+model Employee {
+  id           String         @id @default(cuid())
+  fullName     String
+  employeeNo   String?
+  position     String
+  nationality  String?
+  phone        String?
+  email        String?
+  status       EmployeeStatus @default(ACTIVE)
+  hiredAt      DateTime?
+  terminatedAt DateTime?
+  trainingDone Boolean        @default(false)
+  lastRating   Int?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation("EmployeeBranch", fields: [branchId], references: [id], onDelete: SetNull)
+
+  managedBranches Branch[]           @relation("BranchManager")
+  documents       EmployeeDocument[]
+
+  @@unique([organizationId, employeeNo])
+  @@index([organizationId, branchId])
+  @@index([organizationId, status])
+  @@map("employees")
+}
+
+enum DocumentType {
+  IQAMA
+  PASSPORT
+  HEALTH_CERTIFICATE
+  CONTRACT
+  TRAINING_CERTIFICATE
+  OTHER
+}
+
+model EmployeeDocument {
+  id        String       @id @default(cuid())
+  type      DocumentType
+  number    String?
+  issuedAt  DateTime?
+  expiresAt DateTime?
+  // المستندات الحساسة تُخزَّن كمرجع لمخزن محمي، لا كملف عام
+  storageKey String?
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, type])
+  @@index([expiresAt])
+  @@map("employee_documents")
+}
+
+enum RecruitmentStatus {
+  DRAFT
+  OPEN
+  SCREENING
+  INTERVIEWING
+  OFFER
+  CLOSED
+  CANCELLED
+}
+
+model RecruitmentRequest {
+  id           String            @id @default(cuid())
+  position     String
+  quantity     Int               @default(1)
+  status       RecruitmentStatus @default(DRAFT)
+  description  String?
+  salaryMin    Decimal?          @db.Decimal(10, 2)
+  salaryMax    Decimal?          @db.Decimal(10, 2)
+  neededBy     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  candidates Candidate[]
+
+  @@index([organizationId, status])
+  @@map("recruitment_requests")
+}
+
+enum CandidateStage {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
+
+model Candidate {
+  id         String         @id @default(cuid())
+  fullName   String
+  phone      String?
+  email      String?
+  stage      CandidateStage @default(APPLIED)
+  resumeKey  String?
+  notes      String?
+  rating     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requestId String
+  request   RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, stage])
+  @@map("candidates")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  قوائم الفحص والزيارات
+// ═══════════════════════════════════════════════════════════════
+
+enum ChecklistFrequency {
+  ON_DEMAND
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model ChecklistTemplate {
+  id          String             @id @default(cuid())
+  name        String
+  description String?
+  frequency   ChecklistFrequency @default(ON_DEMAND)
+  isActive    Boolean            @default(true)
+  // درجة النجاح المطلوبة (نسبة مئوية)
+  passScore   Int                @default(80)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  version   Int       @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  sections    ChecklistSection[]
+  inspections Inspection[]
+  schedules   ChecklistSchedule[]
+
+  @@index([organizationId, isActive])
+  @@map("checklist_templates")
+}
+
+model ChecklistSection {
+  id       String @id @default(cuid())
+  title    String
+  sortOrder Int   @default(0)
+  weight   Int    @default(1)
+
+  templateId String
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  items ChecklistItem[]
+
+  @@index([templateId, sortOrder])
+  @@map("checklist_sections")
+}
+
+enum ChecklistItemType {
+  YES_NO
+  SCORE
+  TEXT
+  NUMBER
+  MULTIPLE_CHOICE
+  PHOTO
+  SIGNATURE
+}
+
+model ChecklistItem {
+  id         String            @id @default(cuid())
+  label      String
+  hint       String?
+  type       ChecklistItemType
+  required   Boolean           @default(false)
+  sortOrder  Int               @default(0)
+  weight     Int               @default(1)
+  maxScore   Int?
+  // خيارات MULTIPLE_CHOICE
+  options    String[]          @default([])
+  // فشل هذا البند يفتح إجراءً تصحيحيًا تلقائيًا
+  criticalFail Boolean         @default(false)
+
+  sectionId String
+  section   ChecklistSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  answers InspectionAnswer[]
+
+  @@index([sectionId, sortOrder])
+  @@map("checklist_items")
+}
+
+model ChecklistSchedule {
+  id         String             @id @default(cuid())
+  frequency  ChecklistFrequency
+  // 0=الأحد … 6=السبت — لـWEEKLY
+  dayOfWeek  Int?
+  dayOfMonth Int?
+  timeOfDay  String             @default("09:00")
+  isActive   Boolean            @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  templateId String
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, branchId])
+  @@index([isActive])
+  @@map("checklist_schedules")
+}
+
+enum InspectionStatus {
+  DRAFT
+  IN_PROGRESS
+  SUBMITTED
+  APPROVED
+  OVERDUE
+  CANCELLED
+}
+
+model Inspection {
+  id          String           @id @default(cuid())
+  reference   String
+  status      InspectionStatus @default(DRAFT)
+  startedAt   DateTime?
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  dueAt       DateTime?
+  // النتيجة المحسوبة — مئوية
+  score       Decimal?         @db.Decimal(5, 2)
+  maxScore    Int?
+  passed      Boolean?
+  notes       String?
+  inspectorSignatureKey String?
+  managerSignatureKey   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  templateId String
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  inspectorId String?
+  inspector   User?   @relation("InspectionInspector", fields: [inspectorId], references: [id], onDelete: SetNull)
+
+  answers           InspectionAnswer[]
+  correctiveActions CorrectiveAction[]
+  attachments       Attachment[]
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, status])
+  @@index([organizationId, branchId, submittedAt])
+  @@index([organizationId, dueAt])
+  @@map("inspections")
+}
+
+model InspectionAnswer {
+  id          String   @id @default(cuid())
+  valueBool   Boolean?
+  valueText   String?
+  valueNumber Decimal? @db.Decimal(12, 3)
+  valueChoice String?
+  scoreAwarded Int?
+  note        String?
+  isViolation Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inspectionId String
+  inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   ChecklistItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  attachments Attachment[]
+
+  @@unique([inspectionId, itemId])
+  @@index([inspectionId])
+  @@map("inspection_answers")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  الإجراءات التصحيحية والمهام
+// ═══════════════════════════════════════════════════════════════
+
+enum ActionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ActionStatus {
+  NEW
+  IN_PROGRESS
+  PENDING_REVIEW
+  COMPLETED
+  OVERDUE
+  CANCELLED
+}
+
+model CorrectiveAction {
+  id          String         @id @default(cuid())
+  reference   String
+  title       String
+  description String?
+  priority    ActionPriority @default(MEDIUM)
+  status      ActionStatus   @default(NEW)
+  dueAt       DateTime?
+  completedAt DateTime?
+  approvedAt  DateTime?
+  approvedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  inspectionId String?
+  inspection   Inspection? @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+
+  assigneeId String?
+  assignee   User?   @relation("ActionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  createdById String
+  createdBy   User   @relation("ActionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  attachments Attachment[]
+  comments    Comment[]
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, status])
+  @@index([organizationId, assigneeId, status])
+  @@index([organizationId, dueAt])
+  @@map("corrective_actions")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model Task {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus     @default(TODO)
+  priority    ActionPriority @default(MEDIUM)
+  dueAt       DateTime?
+  completedAt DateTime?
+  assigneeId  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  comments Comment[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, assigneeId])
+  @@map("tasks")
+}
+
+model Comment {
+  id   String @id @default(cuid())
+  body String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  correctiveActionId String?
+  correctiveAction   CorrectiveAction? @relation(fields: [correctiveActionId], references: [id], onDelete: Cascade)
+
+  taskId String?
+  task   Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  serviceOrderId String?
+  serviceOrder   ServiceOrder? @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([correctiveActionId])
+  @@index([taskId])
+  @@map("comments")
+}
+
+model Attachment {
+  id         String  @id @default(cuid())
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  // مفتاح في المخزن — الوصول عبر رابط موقّع فقط
+  storageKey String
+  kind       String  @default("evidence")
+  // قبل/بعد للزيارات الميدانية
+  phase      String?
+
+  createdAt  DateTime @default(now())
+  uploadedById String?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  inspectionId String?
+  inspection   Inspection? @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  answerId String?
+  answer   InspectionAnswer? @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  correctiveActionId String?
+  correctiveAction   CorrectiveAction? @relation(fields: [correctiveActionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([inspectionId])
+  @@index([correctiveActionId])
+  @@map("attachments")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  المنتجات والوصفات وهندسة المنيو
+// ═══════════════════════════════════════════════════════════════
+
+model ProductCategory {
+  id        String @id @default(cuid())
+  name      String
+  sortOrder Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  products Product[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("product_categories")
+}
+
+// تصنيف هندسة المنيو حسب الشعبية والربحية
+enum MenuClass {
+  STAR         // شعبية عالية + ربحية عالية
+  PUZZLE       // شعبية منخفضة + ربحية عالية
+  PLOW_HORSE   // شعبية عالية + ربحية منخفضة
+  DOG          // شعبية منخفضة + ربحية منخفضة
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  nameEn      String?
+  sku         String?
+  description String?
+  sellPrice   Decimal  @db.Decimal(10, 2)
+  vatRate     Decimal  @default(15.00) @db.Decimal(5, 2)
+  isActive    Boolean  @default(true)
+  imageUrl    String?
+  // عدد الوحدات المباعة خلال فترة التحليل — مصدر الشعبية
+  unitsSold   Int      @default(0)
+  menuClass   MenuClass?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  version   Int       @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  brandId String?
+  brand   Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
+  categoryId String?
+  category   ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  recipe Recipe?
+
+  @@unique([organizationId, sku])
+  @@index([organizationId, isActive])
+  @@index([organizationId, categoryId])
+  @@map("products")
+}
+
+model Recipe {
+  id          String  @id @default(cuid())
+  name        String
+  yieldQty    Decimal @default(1) @db.Decimal(10, 3)
+  yieldUnit   String  @default("portion")
+  instructions String?
+  // التكلفة المحسوبة — تُحدَّث عند تغيّر أي مكوّن
+  totalCost   Decimal @default(0) @db.Decimal(10, 4)
+  costUpdatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  productId String? @unique
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  ingredients RecipeIngredient[]
+
+  @@index([organizationId])
+  @@map("recipes")
+}
+
+enum UnitOfMeasure {
+  GRAM
+  KILOGRAM
+  MILLILITER
+  LITER
+  PIECE
+  PORTION
+}
+
+model Ingredient {
+  id       String        @id @default(cuid())
+  name     String
+  unit     UnitOfMeasure
+  // التكلفة لكل وحدة أساس
+  unitCost Decimal       @db.Decimal(10, 4)
+  wastePct Decimal       @default(0) @db.Decimal(5, 2)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  version   Int       @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  recipeIngredients RecipeIngredient[]
+  inventoryItems    InventoryItem[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, deletedAt])
+  @@map("ingredients")
+}
+
+model RecipeIngredient {
+  id       String        @id @default(cuid())
+  quantity Decimal       @db.Decimal(12, 4)
+  unit     UnitOfMeasure
+
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@unique([recipeId, ingredientId])
+  @@index([ingredientId])
+  @@map("recipe_ingredients")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  المخزون والهدر
+// ═══════════════════════════════════════════════════════════════
+
+model Supplier {
+  id          String  @id @default(cuid())
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  vatNumber   String?
+  notes       String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  ingredients Ingredient[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, deletedAt])
+  @@map("suppliers")
+}
+
+model InventoryItem {
+  id           String        @id @default(cuid())
+  unit         UnitOfMeasure
+  quantityOnHand Decimal     @default(0) @db.Decimal(14, 4)
+  reorderLevel Decimal       @default(0) @db.Decimal(14, 4)
+  // يمنع المخزون السالب ما لم يُسمح صراحة لهذا الصنف
+  allowNegative Boolean      @default(false)
+  lastCountedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  movements StockMovement[]
+  countLines InventoryCountLine[]
+  wasteRecords WasteRecord[]
+
+  @@unique([branchId, ingredientId])
+  @@index([organizationId, branchId])
+  @@map("inventory_items")
+}
+
+enum StockMovementType {
+  PURCHASE
+  RECEIVE
+  CONSUMPTION
+  TRANSFER_IN
+  TRANSFER_OUT
+  WASTE
+  COUNT_ADJUSTMENT
+}
+
+model StockMovement {
+  id       String            @id @default(cuid())
+  type     StockMovementType
+  quantity Decimal           @db.Decimal(14, 4)
+  unitCost Decimal?          @db.Decimal(10, 4)
+  // الرصيد بعد الحركة — سجل غير قابل للتعديل
+  balanceAfter Decimal       @db.Decimal(14, 4)
+  reference String?
+  note      String?
+  createdById String?
+
+  createdAt DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, branchId, createdAt])
+  @@index([itemId, createdAt])
+  @@map("stock_movements")
+}
+
+enum CountStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+}
+
+model InventoryCount {
+  id          String      @id @default(cuid())
+  reference   String
+  status      CountStatus @default(DRAFT)
+  countedAt   DateTime    @default(now())
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  lines InventoryCountLine[]
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, branchId, status])
+  @@map("inventory_counts")
+}
+
+model InventoryCountLine {
+  id            String  @id @default(cuid())
+  expectedQty   Decimal @db.Decimal(14, 4)
+  countedQty    Decimal @db.Decimal(14, 4)
+  varianceQty   Decimal @db.Decimal(14, 4)
+  varianceValue Decimal @db.Decimal(12, 4)
+
+  countId String
+  count   InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([countId, itemId])
+  @@index([itemId])
+  @@map("inventory_count_lines")
+}
+
+enum WasteReason {
+  EXPIRED
+  DAMAGED
+  OVER_PRODUCTION
+  CUSTOMER_RETURN
+  PREPARATION_ERROR
+  SPILLAGE
+  OTHER
+}
+
+model WasteRecord {
+  id       String      @id @default(cuid())
+  quantity Decimal     @db.Decimal(14, 4)
+  reason   WasteReason
+  costValue Decimal    @db.Decimal(12, 4)
+  note     String?
+  recordedAt DateTime  @default(now())
+  recordedById String?
+
+  createdAt DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  itemId String
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, branchId, recordedAt])
+  @@index([organizationId, reason])
+  @@map("waste_records")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  سوق الخدمات التشغيلية
+// ═══════════════════════════════════════════════════════════════
+
+model ServiceCatalog {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  nameEn      String?
+  summary     String
+  description String?
+  category    String
+  basePrice   Decimal? @db.Decimal(10, 2)
+  priceNote   String?
+  durationDays Int?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+  // الحقول المطلوبة عند الطلب — مخطط ديناميكي
+  requirementsSchema Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders ServiceOrder[]
+
+  @@index([category, isActive])
+  @@map("service_catalog")
+}
+
+enum ServiceOrderStatus {
+  DRAFT
+  SUBMITTED
+  QUOTED
+  APPROVED
+  IN_PROGRESS
+  DELIVERED
+  CANCELLED
+}
+
+model ServiceOrder {
+  id          String             @id @default(cuid())
+  reference   String
+  status      ServiceOrderStatus @default(DRAFT)
+  requirements Json              @default("{}")
+  quotedPrice Decimal?           @db.Decimal(10, 2)
+  quoteNote   String?
+  approvedAt  DateTime?
+  startedAt   DateTime?
+  deliveredAt DateTime?
+  rating      Int?
+  ratingNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(0)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  serviceId String
+  service   ServiceCatalog @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  events   ServiceOrderEvent[]
+  comments Comment[]
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, status])
+  @@map("service_orders")
+}
+
+model ServiceOrderEvent {
+  id        String   @id @default(cuid())
+  status    ServiceOrderStatus
+  note      String?
+  actorId   String?
+  createdAt DateTime @default(now())
+
+  orderId String
+  order   ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("service_order_events")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  الإشعارات والدعم والتدقيق
+// ═══════════════════════════════════════════════════════════════
+
+enum NotificationType {
+  TASK_OVERDUE
+  PAYMENT_FAILED
+  DOCUMENT_EXPIRING
+  INSPECTION_COMPLETED
+  COMPLIANCE_DROP
+  INGREDIENT_COST_CHANGED
+  USER_INVITED
+  SERVICE_ORDER_UPDATE
+  GENERAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+model Notification {
+  id       String           @id @default(cuid())
+  type     NotificationType
+  channel  NotificationChannel @default(IN_APP)
+  title    String
+  body     String
+  linkPath String?
+  readAt   DateTime?
+  sentAt   DateTime?
+  // للقنوات الخارجية — تُملأ عند توفّر مزوّد
+  deliveryRef String?
+
+  createdAt DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([organizationId, type])
+  @@map("notifications")
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+model SupportTicket {
+  id        String         @id @default(cuid())
+  reference String         @unique
+  subject   String
+  body      String
+  status    TicketStatus   @default(OPEN)
+  priority  ActionPriority @default(MEDIUM)
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@map("support_tickets")
+}
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String?
+  // منقّاة من الحقول الحساسة قبل الكتابة
+  before     Json?
+  after      Json?
+  ipAddress  String?
+  userAgent  String?
+  // سبب انتحال المستخدم عند الدعم
+  impersonationReason String?
+
+  createdAt DateTime @default(now())
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}

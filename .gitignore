@@ -1,3 +1,18 @@
 node_modules
 dist
 .DS_Store
+
+# البيئة والأسرار
+.env
+.env.local
+.env*.local
+
+# Next.js
+.next
+out
+next-env.d.ts
+
+# اختبارات
+playwright-report
+test-results
+coverage

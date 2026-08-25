@@ -1,0 +1,205 @@
+@import 'tailwindcss';
+
+/* ══════════════════════════════════════════════════════════════
+   إتقان — Design Tokens
+   الطابع: الضيافة التشغيلية الحديثة. هادئ، تقني، سعودي، فاخر دون مبالغة.
+   ══════════════════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    --background: 42 33% 98%;
+    --foreground: 150 22% 10%;
+    --surface: 0 0% 100%;
+    --surface-muted: 42 24% 95%;
+
+    --primary: 151 42% 24%;
+    --primary-hover: 151 45% 19%;
+    --primary-soft: 148 32% 92%;
+    --primary-foreground: 42 33% 98%;
+
+    --accent: 35 78% 52%;
+    --accent-soft: 36 80% 93%;
+    --accent-foreground: 150 22% 10%;
+
+    --success: 150 58% 38%;
+    --success-soft: 150 45% 93%;
+    --warning: 38 92% 51%;
+    --warning-soft: 38 90% 94%;
+    --danger: 3 72% 52%;
+    --danger-soft: 3 75% 95%;
+    --info: 207 74% 48%;
+    --info-soft: 207 70% 94%;
+
+    --muted: 42 24% 95%;
+    --muted-foreground: 150 10% 40%;
+
+    --border: 40 16% 86%;
+    --input: 40 16% 86%;
+    --ring: 151 42% 34%;
+
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-xl: 28px;
+
+    /* ظلال ناعمة جدًا — لا ظل ثقيل في أي مكان */
+    --shadow-xs: 0 1px 2px 0 hsl(150 22% 10% / 0.04);
+    --shadow-sm: 0 1px 3px 0 hsl(150 22% 10% / 0.05), 0 1px 2px -1px hsl(150 22% 10% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(150 22% 10% / 0.06), 0 2px 4px -2px hsl(150 22% 10% / 0.04);
+    --shadow-lg: 0 12px 28px -8px hsl(150 22% 10% / 0.10), 0 4px 8px -4px hsl(150 22% 10% / 0.05);
+  }
+
+  /* الوضع الفاتح هو الافتراضي — الداكن يُفعَّل صراحة */
+  .dark {
+    --background: 155 20% 7%;
+    --foreground: 42 20% 94%;
+    --surface: 155 18% 10%;
+    --surface-muted: 155 15% 14%;
+
+    --primary: 150 40% 55%;
+    --primary-hover: 150 44% 62%;
+    --primary-soft: 152 25% 17%;
+    --primary-foreground: 155 20% 7%;
+
+    --accent: 35 72% 58%;
+    --accent-soft: 34 30% 18%;
+    --accent-foreground: 155 20% 7%;
+
+    --success: 150 45% 52%;
+    --success-soft: 150 25% 16%;
+    --warning: 38 78% 58%;
+    --warning-soft: 38 30% 17%;
+    --danger: 3 62% 60%;
+    --danger-soft: 3 28% 18%;
+    --info: 207 60% 60%;
+    --info-soft: 207 28% 17%;
+
+    --muted: 155 15% 14%;
+    --muted-foreground: 150 8% 62%;
+
+    --border: 155 12% 20%;
+    --input: 155 12% 20%;
+    --ring: 150 40% 48%;
+
+    --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.20);
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.28), 0 1px 2px -1px hsl(0 0% 0% / 0.22);
+    --shadow-md: 0 4px 12px -2px hsl(0 0% 0% / 0.34), 0 2px 4px -2px hsl(0 0% 0% / 0.24);
+    --shadow-lg: 0 12px 28px -8px hsl(0 0% 0% / 0.44), 0 4px 8px -4px hsl(0 0% 0% / 0.28);
+  }
+}
+
+/* Tailwind v4 — CSS-first: ربط الـtokens بأدوات Tailwind */
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-surface: hsl(var(--surface));
+  --color-surface-muted: hsl(var(--surface-muted));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-hover: hsl(var(--primary-hover));
+  --color-primary-soft: hsl(var(--primary-soft));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-soft: hsl(var(--accent-soft));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-success-soft: hsl(var(--success-soft));
+  --color-warning: hsl(var(--warning));
+  --color-warning-soft: hsl(var(--warning-soft));
+  --color-danger: hsl(var(--danger));
+  --color-danger-soft: hsl(var(--danger-soft));
+  --color-info: hsl(var(--info));
+  --color-info-soft: hsl(var(--info-soft));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --font-sans: var(--font-arabic), var(--font-latin), system-ui, sans-serif;
+  --font-latin: var(--font-latin), system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-arabic), var(--font-latin), system-ui, sans-serif;
+    font-feature-settings: 'kern';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* حالة التركيز موحّدة وواضحة في كل المنتج — شرط وصول */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* الأرقام في الجداول والتقارير: خانات ثابتة العرض */
+  .tabular,
+  table td,
+  table th {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* الأرقام والرموز اللاتينية داخل نص عربي تبقى بخط لاتيني */
+  .latin {
+    font-family: var(--font-latin), system-ui, sans-serif;
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary-soft));
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer utilities {
+  /* هدف نقر لا يقل عن 44px — شرط تجربة الجوال */
+  .tap-target {
+    min-height: 44px;
+    min-inline-size: 44px;
+  }
+
+  .surface-card {
+    background-color: hsl(var(--surface));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+/* احترام تفضيل تقليل الحركة — إلزامي */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

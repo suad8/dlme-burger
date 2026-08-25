@@ -17,18 +17,25 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # The Pages site serves the standalone menu demo, which is a static Vite
+    # build. The Itqan platform at the repo root is a Next.js app with a
+    # database and cannot be hosted on Pages — see DEPLOYMENT.md.
+    defaults:
+      run:
+        working-directory: legacy/menu-demo
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: legacy/menu-demo/package-lock.json
       - run: npm ci
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: legacy/menu-demo/dist
 
   deploy:
     needs: build
