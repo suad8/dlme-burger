@@ -9,9 +9,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input, Textarea, Label } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { cn, formatNumber } from '@/lib/utils'
-import { saveAnswersAction, submitInspectionAction } from '../actions'
+import {
+  saveAnswersAction,
+  submitInspectionAction,
+  uploadEvidenceAction,
+  deleteEvidenceAction,
+} from '../actions'
 import { SignaturePad } from '@/components/app/signature-pad'
-import { PhotoCapture } from '@/components/app/photo-capture'
+import { PhotoCapture, type UploadedPhoto } from '@/components/app/photo-capture'
 
 /**
  * منفّذ الفحص — مصمّم للجوال أولًا.
@@ -199,6 +204,7 @@ export function InspectionRunner({
               <ItemField
                 key={item.id}
                 item={item}
+                inspectionId={inspectionId}
                 answer={answers[item.id]}
                 onChange={(patch) => update(item.id, patch)}
               />
@@ -243,14 +249,45 @@ export function InspectionRunner({
 
 function ItemField({
   item,
+  inspectionId,
   answer,
   onChange,
 }: {
   item: ItemView
+  inspectionId: string
   answer: AnswerState | undefined
   onChange: (patch: Partial<AnswerState>) => void
 }) {
   const answered = hasValue(answer)
+
+  /**
+   * الصورة تُرفع إلى المخزن، ويُحفظ في الإجابة مرجع المرفق لا محتواه.
+   * `valueText` يحمل JSON مضغوطًا: { id, url, fileName }.
+   */
+  const photo = parsePhoto(answer?.valueText)
+
+  async function handleUpload(file: File): Promise<UploadedPhoto | null> {
+    const form = new FormData()
+    form.set('file', file)
+    form.set('inspectionId', inspectionId)
+
+    const result = await uploadEvidenceAction(form)
+    if (!result.ok || !result.data) {
+      toast.error(result.message ?? 'تعذّر رفع الصورة.')
+      return null
+    }
+
+    // الصورة السابقة تُحذف بعد نجاح الجديدة، لا قبله
+    if (photo) void deleteEvidenceAction(photo.id, inspectionId)
+
+    onChange({ valueText: JSON.stringify(result.data) })
+    return result.data
+  }
+
+  function handleRemove() {
+    if (photo) void deleteEvidenceAction(photo.id, inspectionId)
+    onChange({ valueText: null })
+  }
 
   return (
     <div id={`item-${item.id}`} className="scroll-mt-32">
@@ -372,8 +409,9 @@ function ItemField({
 
         {item.type === 'PHOTO' && (
           <PhotoCapture
-            value={answer?.valueText ?? null}
-            onChange={(dataUrl) => onChange({ valueText: dataUrl })}
+            value={photo}
+            onUpload={handleUpload}
+            onRemove={handleRemove}
           />
         )}
 
@@ -402,6 +440,25 @@ function ItemField({
       )}
     </div>
   )
+}
+
+/** يقرأ مرجع الصورة المخزّن نصًا. قيمة تالفة تُعامل كغياب لا كخطأ. */
+function parsePhoto(raw: string | null | undefined): UploadedPhoto | null {
+  if (!raw) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'id' in parsed &&
+      'url' in parsed
+    ) {
+      return parsed as UploadedPhoto
+    }
+  } catch {
+    // إجابة قديمة كانت تحفظ data URL — تُتجاهل بدل أن تكسر الشاشة
+  }
+  return null
 }
 
 function hasValue(a: AnswerState | undefined): boolean {

@@ -109,3 +109,87 @@ export type LoginInput = z.infer<typeof loginSchema>
 export type RegisterInput = z.infer<typeof registerSchema>
 export type BranchInput = z.infer<typeof branchSchema>
 export type CorrectiveActionInput = z.infer<typeof correctiveActionSchema>
+
+/* ── قوالب الفحص ──────────────────────────────────────────── */
+
+export const checklistItemSchema = z.object({
+  label: z.string().min(2, 'نص البند مطلوب').max(300),
+  hint: z.string().max(300).optional().or(z.literal('')),
+  type: z.enum([
+    'YES_NO',
+    'SCORE',
+    'TEXT',
+    'NUMBER',
+    'MULTIPLE_CHOICE',
+    'PHOTO',
+    'SIGNATURE',
+  ]),
+  required: z.boolean(),
+  criticalFail: z.boolean(),
+  weight: z.number().int().min(1, 'الوزن لا يقل عن ١').max(10, 'الوزن لا يتجاوز ١٠'),
+  maxScore: z.number().int().min(2).max(10).nullable(),
+  options: z.array(z.string().min(1).max(120)).max(10),
+})
+
+export const checklistSectionSchema = z.object({
+  title: z.string().min(2, 'عنوان القسم مطلوب').max(200),
+  items: z
+    .array(checklistItemSchema)
+    .min(1, 'كل قسم يحتاج بندًا واحدًا على الأقل')
+    .max(50, 'حد أقصى ٥٠ بندًا في القسم'),
+})
+
+export const checklistTemplateSchema = z
+  .object({
+    name: z.string().min(3, 'اسم القالب مطلوب').max(200),
+    description: z.string().max(1000).optional().or(z.literal('')),
+    frequency: z.enum(['ON_DEMAND', 'DAILY', 'WEEKLY', 'MONTHLY']),
+    passScore: z
+      .number()
+      .int()
+      .min(1, 'درجة النجاح بين ١ و١٠٠')
+      .max(100, 'درجة النجاح بين ١ و١٠٠'),
+    isActive: z.boolean(),
+    sections: z
+      .array(checklistSectionSchema)
+      .min(1, 'القالب يحتاج قسمًا واحدًا على الأقل')
+      .max(20, 'حد أقصى ٢٠ قسمًا'),
+  })
+  .superRefine((data, ctx) => {
+    // قالب بلا بند قابل للتسجيل لا يمكن احتساب نتيجته
+    const scorable = data.sections
+      .flatMap((s) => s.items)
+      .filter((i) => ['YES_NO', 'SCORE', 'MULTIPLE_CHOICE'].includes(i.type))
+
+    if (scorable.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sections'],
+        message:
+          'القالب يحتاج بندًا واحدًا على الأقل قابلًا للتسجيل (نعم/لا أو درجة أو اختيار من متعدد) لتُحتسب النتيجة.',
+      })
+    }
+
+    data.sections.forEach((section, si) => {
+      section.items.forEach((item, ii) => {
+        if (item.type === 'MULTIPLE_CHOICE' && item.options.length < 2) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['sections', si, 'items', ii, 'options'],
+            message: 'الاختيار من متعدد يحتاج خيارين على الأقل.',
+          })
+        }
+        if (item.type === 'SCORE' && item.maxScore === null) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['sections', si, 'items', ii, 'maxScore'],
+            message: 'بند الدرجة يحتاج حدًا أقصى.',
+          })
+        }
+      })
+    })
+  })
+
+export type ChecklistTemplateInput = z.infer<typeof checklistTemplateSchema>
+export type ChecklistSectionInput = z.infer<typeof checklistSectionSchema>
+export type ChecklistItemInput = z.infer<typeof checklistItemSchema>

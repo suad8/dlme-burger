@@ -9,6 +9,7 @@ import { authorize } from '../rbac'
 import { assertBranchInScope, branchFilter, type TenantContext } from '../tenant'
 import { recordAudit } from '../audit'
 import { toNumber } from '@/lib/utils'
+import type { ChecklistTemplateInput } from '@/lib/validation'
 
 /**
  * منطق الفحوصات والزيارات.
@@ -664,4 +665,125 @@ export async function listTemplatesWithCounts(ctx: TenantContext) {
     inspectionCount: t._count.inspections,
     scheduleCount: t._count.schedules,
   }))
+}
+
+/* ── إنشاء القوالب وتعديلها ───────────────────────────────── */
+
+/**
+ * ينشئ قالب فحص كاملًا بأقسامه وبنوده في معاملة واحدة.
+ * قالب بأقسام ناقصة أسوأ من غياب القالب: يُنفَّذ فحص لا يقيس ما يفترض قياسه.
+ */
+export async function createTemplate(
+  ctx: TenantContext,
+  input: ChecklistTemplateInput,
+): Promise<string> {
+  authorize(ctx, 'checklist:create')
+
+  const templateId = await prisma.$transaction(async (tx) => {
+    const template = await tx.checklistTemplate.create({
+      data: {
+        organizationId: ctx.organizationId,
+        name: input.name,
+        description: input.description || null,
+        frequency: input.frequency,
+        passScore: input.passScore,
+        isActive: input.isActive,
+        sections: {
+          create: input.sections.map((section, si) => ({
+            title: section.title,
+            sortOrder: si,
+            items: {
+              create: section.items.map((item, ii) => ({
+                label: item.label,
+                hint: item.hint || null,
+                type: item.type,
+                required: item.required,
+                criticalFail: item.criticalFail,
+                weight: item.weight,
+                sortOrder: ii,
+                // الحد الأقصى يخص بند الدرجة وحده
+                maxScore: item.type === 'SCORE' ? item.maxScore : null,
+                options: item.type === 'MULTIPLE_CHOICE' ? item.options : [],
+              })),
+            },
+          })),
+        },
+      },
+      select: { id: true },
+    })
+    return template.id
+  }, { timeout: 20_000 })
+
+  await recordAudit({
+    organizationId: ctx.organizationId,
+    actorId: ctx.userId,
+    action: 'checklist.created',
+    entityType: 'ChecklistTemplate',
+    entityId: templateId,
+    after: {
+      name: input.name,
+      sections: input.sections.length,
+      items: input.sections.reduce((n, s) => n + s.items.length, 0),
+    },
+  })
+
+  return templateId
+}
+
+/** يفعّل قالبًا أو يوقفه. الإيقاف لا يحذف الزيارات المنفّذة به. */
+export async function setTemplateActive(
+  ctx: TenantContext,
+  templateId: string,
+  isActive: boolean,
+): Promise<void> {
+  authorize(ctx, 'checklist:update')
+
+  const result = await prisma.checklistTemplate.updateMany({
+    where: {
+      id: templateId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
+    data: { isActive, version: { increment: 1 } },
+  })
+
+  if (result.count === 0) throw new Error('القالب غير موجود.')
+
+  await recordAudit({
+    organizationId: ctx.organizationId,
+    actorId: ctx.userId,
+    action: isActive ? 'checklist.activated' : 'checklist.deactivated',
+    entityType: 'ChecklistTemplate',
+    entityId: templateId,
+  })
+}
+
+/**
+ * حذف ناعم. القالب المستخدَم في زيارات سابقة لا يُحذف نهائيًا أبدًا —
+ * حذفه يعني فقدان معنى تلك الزيارات.
+ */
+export async function softDeleteTemplate(
+  ctx: TenantContext,
+  templateId: string,
+): Promise<void> {
+  authorize(ctx, 'checklist:delete')
+
+  const result = await prisma.checklistTemplate.updateMany({
+    where: {
+      id: templateId,
+      organizationId: ctx.organizationId,
+      deletedAt: null,
+    },
+    data: { deletedAt: new Date(), isActive: false },
+  })
+
+  if (result.count === 0) throw new Error('القالب غير موجود.')
+
+  await recordAudit({
+    organizationId: ctx.organizationId,
+    actorId: ctx.userId,
+    action: 'checklist.deleted',
+    entityType: 'ChecklistTemplate',
+    entityId: templateId,
+  })
 }

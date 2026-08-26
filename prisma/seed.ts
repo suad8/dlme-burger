@@ -821,6 +821,68 @@ async function seedOperations(org: OrgSeedResult, prefix: string): Promise<void>
     }
   }
 
+  // ── إشعارات داخل النظام ────────────────────────────────────────
+  const existingNotifications = await prisma.notification.count({
+    where: { organizationId },
+  })
+  if (existingNotifications === 0 && ownerId) {
+    const overdueCount = await prisma.correctiveAction.count({
+      where: { organizationId, status: 'OVERDUE' },
+    })
+    const expiringDocs = await prisma.employeeDocument.count({
+      where: {
+        employee: { organizationId },
+        expiresAt: { gte: new Date(), lte: daysAhead(30) },
+      },
+    })
+
+    const notices: {
+      type: 'TASK_OVERDUE' | 'DOCUMENT_EXPIRING' | 'COMPLIANCE_DROP' | 'INSPECTION_COMPLETED'
+      title: string
+      body: string
+      linkPath: string
+    }[] = []
+
+    if (overdueCount > 0) {
+      notices.push({
+        type: 'TASK_OVERDUE',
+        title: 'إجراءات تصحيحية متأخرة',
+        body: `${overdueCount} إجراء تجاوز موعده النهائي ويحتاج متابعة.`,
+        linkPath: '/actions?status=OVERDUE',
+      })
+    }
+    if (expiringDocs > 0) {
+      notices.push({
+        type: 'DOCUMENT_EXPIRING',
+        title: 'مستندات قاربت على الانتهاء',
+        body: `${expiringDocs} مستند لموظفين ينتهي خلال ٣٠ يومًا.`,
+        linkPath: '/employees',
+      })
+    }
+    notices.push({
+      type: 'INSPECTION_COMPLETED',
+      title: 'اكتملت زيارة',
+      body: 'اعتُمدت زيارة جديدة وأُضيفت نتيجتها إلى درجة الالتزام.',
+      linkPath: '/inspections?status=APPROVED',
+    })
+
+    for (const n of notices) {
+      await prisma.notification.create({
+        data: {
+          organizationId,
+          userId: ownerId,
+          type: n.type,
+          channel: 'IN_APP',
+          title: n.title,
+          body: n.body,
+          linkPath: n.linkPath,
+          sentAt: new Date(),
+          createdAt: daysAgo(1),
+        },
+      })
+    }
+  }
+
   // ── طلب خدمة تشغيلية ───────────────────────────────────────────
   const existingOrders = await prisma.serviceOrder.count({ where: { organizationId } })
   if (existingOrders === 0) {

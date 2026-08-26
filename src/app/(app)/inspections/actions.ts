@@ -11,6 +11,8 @@ import {
   type AnswerInput,
 } from '@/server/services/inspections'
 import { ForbiddenError } from '@/server/rbac'
+import { uploadAttachment, deleteAttachment } from '@/server/services/attachments'
+import { InvalidFileError, MAX_FILE_BYTES } from '@/server/storage/provider'
 
 export interface ActionResult<T = undefined> {
   ok: boolean
@@ -94,6 +96,79 @@ export async function approveInspectionAction(
     revalidatePath('/inspections')
     revalidatePath(`/inspections/${inspectionId}`)
     revalidatePath('/dashboard')
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+/* ── المرفقات ─────────────────────────────────────────────── */
+
+/**
+ * رفع صورة دليل.
+ *
+ * يستقبل FormData لا JSON: تمرير ملف ثنائي كـbase64 داخل JSON يضخّم الحمولة
+ * ٣٣٪ ويستهلك ذاكرة الخادم بلا داعٍ.
+ */
+export async function uploadEvidenceAction(
+  formData: FormData,
+): Promise<ActionResult<{ id: string; url: string; fileName: string }>> {
+  try {
+    const ctx = await requireTenant()
+
+    const file = formData.get('file')
+    const inspectionId = formData.get('inspectionId')
+    const answerId = formData.get('answerId')
+    const phase = formData.get('phase')
+
+    if (!(file instanceof File)) {
+      return { ok: false, message: 'لم يُرفق ملف.' }
+    }
+    if (typeof inspectionId !== 'string' || !inspectionId) {
+      return { ok: false, message: 'الزيارة غير محددة.' }
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      return { ok: false, message: 'حجم الملف يتجاوز ٨ ميغابايت.' }
+    }
+
+    const data = Buffer.from(await file.arrayBuffer())
+
+    const attachment = await uploadAttachment(ctx, {
+      target:
+        typeof answerId === 'string' && answerId
+          ? { kind: 'answer', inspectionId, answerId }
+          : { kind: 'inspection', inspectionId },
+      fileName: file.name,
+      mimeType: file.type,
+      data,
+      phase: phase === 'before' || phase === 'after' ? phase : undefined,
+    })
+
+    revalidatePath(`/inspections/${inspectionId}`)
+    return {
+      ok: true,
+      data: {
+        id: attachment.id,
+        url: attachment.url,
+        fileName: attachment.fileName,
+      },
+    }
+  } catch (error) {
+    if (error instanceof InvalidFileError) {
+      return { ok: false, message: error.message }
+    }
+    return toResult(error)
+  }
+}
+
+export async function deleteEvidenceAction(
+  attachmentId: string,
+  inspectionId: string,
+): Promise<ActionResult> {
+  try {
+    const ctx = await requireTenant()
+    await deleteAttachment(ctx, attachmentId)
+    revalidatePath(`/inspections/${inspectionId}`)
     return { ok: true }
   } catch (error) {
     return toResult(error)

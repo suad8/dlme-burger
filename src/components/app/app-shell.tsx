@@ -26,6 +26,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { signOut } from '@/lib/auth-client'
 import { ThemeToggle } from '@/components/app/theme-toggle'
+import { NotificationBell } from '@/components/app/notification-bell'
+import { CommandMenu } from '@/components/app/command-menu'
 
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -234,12 +236,15 @@ export function AppShell({
             </div>
           </div>
 
+          <CommandMenu items={items} />
+
           {scopedBranchCount !== null && (
-            <Badge tone="info" className="hidden sm:inline-flex">
+            <Badge tone="info" className="hidden lg:inline-flex">
               نطاقك: {scopedBranchCount} فرع
             </Badge>
           )}
 
+          <NotificationBell />
           <ThemeToggle />
 
           <Button

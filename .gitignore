@@ -16,3 +16,6 @@ next-env.d.ts
 playwright-report
 test-results
 coverage
+
+# ملفات المستخدمين المرفوعة محليًا
+.storage
