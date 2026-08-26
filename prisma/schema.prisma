@@ -553,10 +553,17 @@ model Invoice {
   subscriptionId String?
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
+  // فاتورة إما لاشتراك أو لطلب خدمة. الحقلان اختياريان لأن الفاتورة اليدوية
+  // قد لا ترتبط بأيّهما، لكن تحصيل الدفع يفرّق بينهما: دفع طلب خدمة يجب ألا
+  // يمدّد الاشتراك.
+  serviceOrderId String?
+  serviceOrder   ServiceOrder? @relation(fields: [serviceOrderId], references: [id], onDelete: SetNull)
+
   payments Payment[]
 
   @@unique([organizationId, number])
   @@index([organizationId, status])
+  @@index([serviceOrderId])
   @@map("invoices")
 }
 
@@ -1476,6 +1483,7 @@ model ServiceOrder {
 
   events   ServiceOrderEvent[]
   comments Comment[]
+  invoices Invoice[]
 
   @@unique([organizationId, reference])
   @@index([organizationId, status])

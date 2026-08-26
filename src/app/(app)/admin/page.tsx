@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { ShieldAlert, Building2, Users, Activity, KeyRound } from 'lucide-react'
 import { requireSuperAdmin } from '@/server/tenant'
+import { listAllOrders } from '@/server/services/service-orders'
+import { OrderDesk } from './order-desk'
 import {
   getPlatformStats,
   listOrganizations,
@@ -37,11 +39,12 @@ export default async function AdminPage() {
   // 404 لغير مدير النظام — لا نكشف وجود المسار
   const ctx = await requireSuperAdmin()
 
-  const [stats, orgs, audit, failedLogins] = await Promise.all([
+  const [stats, orgs, audit, failedLogins, serviceOrders] = await Promise.all([
     getPlatformStats(ctx),
     listOrganizations(ctx),
     listRecentAudit(ctx, 30),
     listFailedLogins(ctx, 15),
+    listAllOrders(ctx, 25),
   ])
 
   return (
@@ -111,6 +114,21 @@ export default async function AdminPage() {
           </div>
         ))}
       </div>
+
+      {/* مكتب طلبات الخدمة */}
+      <Card>
+        <CardHeader>
+          <CardTitle>طلبات الخدمة</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <OrderDesk
+            orders={serviceOrders.map((o) => ({
+              ...o,
+              createdAt: o.createdAt.toISOString(),
+            }))}
+          />
+        </CardContent>
+      </Card>
 
       {/* المنشآت */}
       <Card>

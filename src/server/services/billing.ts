@@ -226,6 +226,7 @@ export async function applyPaymentEvent(
           organizationId: true,
           number: true,
           total: true,
+          serviceOrderId: true,
         },
       },
     },
@@ -275,7 +276,10 @@ export async function applyPaymentEvent(
     return { applied: true }
   }
 
-  // نجاح: نُثبّت الدفعة ونُصدر الفاتورة ونمدّ الاشتراك — كلها أو لا شيء
+  // نجاح. فاتورة طلب خدمة تُعتمد الطلب ولا تمسّ الاشتراك: خلط الاثنين يعني
+  // أن شراء خدمة استشارية يمدّد الاشتراك شهرًا مجانًا.
+  const isServiceOrder = payment.invoice.serviceOrderId !== null
+
   const periodEnd = new Date()
   periodEnd.setMonth(periodEnd.getMonth() + 1)
 
@@ -288,21 +292,29 @@ export async function applyPaymentEvent(
       where: { id: payment.invoice.id },
       data: { status: 'PAID', paidAt: event.occurredAt, issuedAt: event.occurredAt },
     })
-    await tx.subscription.updateMany({
-      where: { organizationId },
-      data: {
-        status: 'ACTIVE',
-        currentPeriodStart: event.occurredAt,
-        currentPeriodEnd: periodEnd,
-        graceEndsAt: null,
-        version: { increment: 1 },
-      },
-    })
-    await tx.organization.update({
-      where: { id: organizationId },
-      data: { status: 'ACTIVE' },
-    })
+
+    if (!isServiceOrder) {
+      await tx.subscription.updateMany({
+        where: { organizationId },
+        data: {
+          status: 'ACTIVE',
+          currentPeriodStart: event.occurredAt,
+          currentPeriodEnd: periodEnd,
+          graceEndsAt: null,
+          version: { increment: 1 },
+        },
+      })
+      await tx.organization.update({
+        where: { id: organizationId },
+        data: { status: 'ACTIVE' },
+      })
+    }
   })
+
+  if (isServiceOrder && payment.invoice.serviceOrderId) {
+    const { markOrderPaid } = await import('./service-orders')
+    await markOrderPaid(payment.invoice.serviceOrderId, event.occurredAt)
+  }
 
   await recordAudit({
     organizationId,

@@ -9,6 +9,7 @@ import {
   ChefHat,
   Boxes,
   ChartNoAxesColumn,
+  Briefcase,
   Settings,
 } from 'lucide-react'
 import { requireTenant } from '@/server/tenant'
@@ -25,6 +26,7 @@ const NAV: { href: string; label: string; icon: string; permission: Permission }
   { href: '/recipes', label: 'الوصفات والتكاليف', icon: 'recipes', permission: 'recipe:view' },
   { href: '/inventory', label: 'المخزون والهدر', icon: 'inventory', permission: 'inventory:view' },
   { href: '/reports', label: 'التقارير', icon: 'reports', permission: 'report:view' },
+  { href: '/service-orders', label: 'الخدمات', icon: 'services', permission: 'service:view' },
   { href: '/settings', label: 'الإعدادات', icon: 'settings', permission: 'org:view' },
 ]
 
@@ -38,6 +40,7 @@ export const ICONS = {
   recipes: ChefHat,
   inventory: Boxes,
   reports: ChartNoAxesColumn,
+  services: Briefcase,
   settings: Settings,
 } as const
 

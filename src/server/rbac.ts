@@ -155,6 +155,8 @@ const OWNER_PERMISSIONS: Permission[] = [
   'billing:manage',
   'org:delete',
   'service:delete',
+  // اعتماد عرض سعر خدمة التزام مالي، فيقف عند من يملك الفوترة
+  'service:approve',
 ]
 
 /**
