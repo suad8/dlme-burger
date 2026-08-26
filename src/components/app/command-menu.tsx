@@ -3,22 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Command } from 'cmdk'
-import {
-  LayoutDashboard,
-  Building2,
-  ClipboardList,
-  ClipboardCheck,
-  CircleCheck,
-  Users,
-  ChefHat,
-  Boxes,
-  ChartNoAxesColumn,
-  Settings,
-  Plus,
-  Search,
-  type LucideIcon,
-} from 'lucide-react'
+import { Search, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { NAV_ICONS, FALLBACK_ICON } from '@/components/app/nav-icons'
 import type { NavItem } from './app-shell'
 
 /**
@@ -29,18 +16,6 @@ import type { NavItem } from './app-shell'
  * تفرض صلاحيتها على الخادم بمعزل عن هذه القائمة.
  */
 
-const ICONS: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  branches: Building2,
-  checklists: ClipboardList,
-  inspections: ClipboardCheck,
-  actions: CircleCheck,
-  employees: Users,
-  recipes: ChefHat,
-  inventory: Boxes,
-  reports: ChartNoAxesColumn,
-  settings: Settings,
-}
 
 interface QuickAction {
   href: string
@@ -150,7 +125,7 @@ export function CommandMenu({ items }: { items: NavItem[] }) {
               className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:text-muted-foreground"
             >
               {items.map((item) => {
-                const Icon = ICONS[item.icon] ?? LayoutDashboard
+                const Icon = NAV_ICONS[item.icon] ?? FALLBACK_ICON
                 return (
                   <Command.Item
                     key={item.href}

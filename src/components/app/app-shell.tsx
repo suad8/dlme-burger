@@ -4,22 +4,11 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard,
-  Building2,
-  ClipboardList,
-  ClipboardCheck,
-  CircleCheck,
-  Users,
-  ChefHat,
-  Boxes,
-  ChartNoAxesColumn,
-  Settings,
   Menu,
   X,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -28,19 +17,8 @@ import { signOut } from '@/lib/auth-client'
 import { ThemeToggle } from '@/components/app/theme-toggle'
 import { NotificationBell } from '@/components/app/notification-bell'
 import { CommandMenu } from '@/components/app/command-menu'
+import { NAV_ICONS, FALLBACK_ICON } from '@/components/app/nav-icons'
 
-const ICONS: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  branches: Building2,
-  checklists: ClipboardList,
-  inspections: ClipboardCheck,
-  actions: CircleCheck,
-  employees: Users,
-  recipes: ChefHat,
-  inventory: Boxes,
-  reports: ChartNoAxesColumn,
-  settings: Settings,
-}
 
 /** التنقل السفلي للجوال — أهم خمسة مسارات ميدانية. */
 const MOBILE_PRIORITY = ['dashboard', 'inspections', 'actions', 'branches', 'reports']
@@ -111,7 +89,7 @@ export function AppShell({
         <nav aria-label="التنقل الرئيسي" className="flex-1 overflow-y-auto p-2">
           <ul className="space-y-0.5">
             {items.map((item) => {
-              const Icon = ICONS[item.icon] ?? LayoutDashboard
+              const Icon = NAV_ICONS[item.icon] ?? FALLBACK_ICON
               const active = isActive(item.href)
               return (
                 <li key={item.href}>
@@ -185,7 +163,7 @@ export function AppShell({
             <nav aria-label="التنقل" className="flex-1 overflow-y-auto p-2">
               <ul className="space-y-0.5">
                 {items.map((item) => {
-                  const Icon = ICONS[item.icon] ?? LayoutDashboard
+                  const Icon = NAV_ICONS[item.icon] ?? FALLBACK_ICON
                   const active = isActive(item.href)
                   return (
                     <li key={item.href}>
@@ -268,7 +246,7 @@ export function AppShell({
         >
           <ul className="grid grid-cols-5">
             {mobileItems.map((item) => {
-              const Icon = ICONS[item.icon] ?? LayoutDashboard
+              const Icon = NAV_ICONS[item.icon] ?? FALLBACK_ICON
               const active = isActive(item.href)
               return (
                 <li key={item.href}>

@@ -21,6 +21,7 @@ export type AttachmentTarget =
   | { kind: 'inspection'; inspectionId: string }
   | { kind: 'answer'; inspectionId: string; answerId: string }
   | { kind: 'action'; correctiveActionId: string }
+  | { kind: 'candidate'; candidateId: string }
 
 export interface UploadInput {
   target: AttachmentTarget
@@ -46,6 +47,8 @@ const PERMISSION_BY_KIND: Record<AttachmentTarget['kind'], Permission> = {
   inspection: 'inspection:update',
   answer: 'inspection:update',
   action: 'action:update',
+  // السيرة الذاتية مستند شخصي: يقف عند من يدير التوظيف لا عند كل من يرى الزيارات
+  candidate: 'recruitment:update',
 }
 
 /** يتأكد أن الهدف يخص منشأة الطالب ونطاق فروعه. */
@@ -53,6 +56,15 @@ async function assertTargetOwned(
   ctx: TenantContext,
   target: AttachmentTarget,
 ): Promise<void> {
+  if (target.kind === 'candidate') {
+    const found = await prisma.candidate.findFirst({
+      where: { id: target.candidateId, organizationId: ctx.organizationId },
+      select: { id: true },
+    })
+    if (!found) throw new Error('المرشّح غير موجود ضمن منشأتك.')
+    return
+  }
+
   if (target.kind === 'action') {
     const found = await prisma.correctiveAction.findFirst({
       where: {
@@ -98,7 +110,12 @@ export async function uploadAttachment(
   // assertValidFile داخل put يفحص المحتوى الفعلي لا النوع المُعلَن
   const stored = await storage.put({
     organizationId: ctx.organizationId,
-    scope: input.target.kind === 'action' ? 'actions' : 'inspections',
+    scope:
+      input.target.kind === 'action'
+        ? 'actions'
+        : input.target.kind === 'candidate'
+          ? 'candidates'
+          : 'inspections',
     fileName: input.fileName,
     mimeType: input.mimeType,
     data: input.data,
@@ -120,6 +137,9 @@ export async function uploadAttachment(
       answerId: input.target.kind === 'answer' ? input.target.answerId : null,
       correctiveActionId:
         input.target.kind === 'action' ? input.target.correctiveActionId : null,
+      candidateId:
+        input.target.kind === 'candidate' ? input.target.candidateId : null,
+      kind: input.target.kind === 'candidate' ? 'resume' : 'evidence',
     },
     select: {
       id: true,
@@ -161,16 +181,25 @@ export async function listAttachments(
   ctx: TenantContext,
   target: AttachmentTarget,
 ): Promise<AttachmentView[]> {
-  authorize(ctx, target.kind === 'action' ? 'action:view' : 'inspection:view')
+  authorize(
+    ctx,
+    target.kind === 'action'
+      ? 'action:view'
+      : target.kind === 'candidate'
+        ? 'recruitment:view'
+        : 'inspection:view',
+  )
 
   const rows = await prisma.attachment.findMany({
     where: {
       organizationId: ctx.organizationId,
       ...(target.kind === 'action'
         ? { correctiveActionId: target.correctiveActionId }
-        : target.kind === 'answer'
-          ? { answerId: target.answerId }
-          : { inspectionId: target.inspectionId }),
+        : target.kind === 'candidate'
+          ? { candidateId: target.candidateId }
+          : target.kind === 'answer'
+            ? { answerId: target.answerId }
+            : { inspectionId: target.inspectionId }),
     },
     select: {
       id: true,
@@ -199,13 +228,28 @@ export async function deleteAttachment(
   ctx: TenantContext,
   attachmentId: string,
 ): Promise<void> {
-  authorize(ctx, 'inspection:update')
-
   const attachment = await prisma.attachment.findFirst({
     where: { id: attachmentId, organizationId: ctx.organizationId },
-    select: { id: true, storageKey: true, fileName: true },
+    select: {
+      id: true,
+      storageKey: true,
+      fileName: true,
+      candidateId: true,
+      correctiveActionId: true,
+    },
   })
   if (!attachment) throw new Error('المرفق غير موجود.')
+
+  // الصلاحية تُشتق من نوع المرفق لا من افتراض واحد: من يعدّل الزيارات يجب
+  // ألا يملك حذف سيرة ذاتية لمرشّح.
+  authorize(
+    ctx,
+    attachment.candidateId
+      ? 'recruitment:update'
+      : attachment.correctiveActionId
+        ? 'action:update'
+        : 'inspection:update',
+  )
 
   // السجل أولًا ثم الملف: مرفق بلا ملف أهون من ملف بلا سجل يشير إليه
   await prisma.attachment.delete({ where: { id: attachment.id } })

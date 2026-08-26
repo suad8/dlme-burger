@@ -1,17 +1,4 @@
 import Link from 'next/link'
-import {
-  LayoutDashboard,
-  Building2,
-  ClipboardList,
-  ClipboardCheck,
-  CircleCheck,
-  Users,
-  ChefHat,
-  Boxes,
-  ChartNoAxesColumn,
-  Briefcase,
-  Settings,
-} from 'lucide-react'
 import { requireTenant } from '@/server/tenant'
 import { can, ROLE_LABELS, type Permission } from '@/server/rbac'
 import { AppShell, type NavItem } from '@/components/app/app-shell'
@@ -23,6 +10,7 @@ const NAV: { href: string; label: string; icon: string; permission: Permission }
   { href: '/inspections', label: 'الزيارات', icon: 'inspections', permission: 'inspection:view' },
   { href: '/actions', label: 'الإجراءات التصحيحية', icon: 'actions', permission: 'action:view' },
   { href: '/employees', label: 'الموظفون', icon: 'employees', permission: 'employee:view' },
+  { href: '/recruitment', label: 'التوظيف', icon: 'recruitment', permission: 'recruitment:view' },
   { href: '/recipes', label: 'الوصفات والتكاليف', icon: 'recipes', permission: 'recipe:view' },
   { href: '/inventory', label: 'المخزون والهدر', icon: 'inventory', permission: 'inventory:view' },
   { href: '/reports', label: 'التقارير', icon: 'reports', permission: 'report:view' },
@@ -30,19 +18,7 @@ const NAV: { href: string; label: string; icon: string; permission: Permission }
   { href: '/settings', label: 'الإعدادات', icon: 'settings', permission: 'org:view' },
 ]
 
-export const ICONS = {
-  dashboard: LayoutDashboard,
-  branches: Building2,
-  checklists: ClipboardList,
-  inspections: ClipboardCheck,
-  actions: CircleCheck,
-  employees: Users,
-  recipes: ChefHat,
-  inventory: Boxes,
-  reports: ChartNoAxesColumn,
-  services: Briefcase,
-  settings: Settings,
-} as const
+export { NAV_ICONS as ICONS } from '@/components/app/nav-icons'
 
 export default async function AppLayout({
   children,

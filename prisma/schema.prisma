@@ -194,6 +194,7 @@ model Organization {
   wasteRecords       WasteRecord[]
   serviceOrders      ServiceOrder[]
   recruitmentReqs    RecruitmentRequest[]
+  candidates         Candidate[]
   notifications      Notification[]
   supportTickets     SupportTicket[]
   auditLogs          AuditLog[]
@@ -745,9 +746,17 @@ model Candidate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // المرشّح كان معزولًا عبر الطلب فقط. أي استعلام ينسى ضم الطلب كان يعبر
+  // حدود المنشأة، فصار العمود هنا كبقية الجداول: العزل شرط مباشر لا وراثة.
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   requestId String
   request   RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
+  attachments Attachment[]
+
+  @@index([organizationId, stage])
   @@index([requestId, stage])
   @@map("candidates")
 }
@@ -1086,9 +1095,14 @@ model Attachment {
   correctiveActionId String?
   correctiveAction   CorrectiveAction? @relation(fields: [correctiveActionId], references: [id], onDelete: Cascade)
 
+  // السيرة الذاتية مستند شخصي: يمرّ بنفس مسار الرابط الموقّع وفحص الملكية
+  candidateId String?
+  candidate   Candidate? @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
   @@index([organizationId])
   @@index([inspectionId])
   @@index([correctiveActionId])
+  @@index([candidateId])
   @@map("attachments")
 }
 
