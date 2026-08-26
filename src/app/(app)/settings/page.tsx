@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { Building2, CreditCard, Users, ShieldCheck } from 'lucide-react'
 import { requireTenant } from '@/server/tenant'
-import { authorize, can, ROLE_LABELS } from '@/server/rbac'
+import { NoPermission } from '@/components/ui/states'
+import { can, ROLE_LABELS } from '@/server/rbac'
 import { getOrganizationSettings } from '@/server/services/settings'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -33,7 +34,7 @@ const SUB_STATUS_TONE: Record<string, 'success' | 'info' | 'warning' | 'danger' 
 
 export default async function SettingsPage() {
   const ctx = await requireTenant()
-  authorize(ctx, 'org:view')
+  if (!can(ctx, 'org:view')) return <NoPermission />
 
   const data = await getOrganizationSettings(ctx)
   const showBilling = can(ctx, 'billing:view')

@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { redact } from '@/server/audit'
 import {
   checkRateLimit,
@@ -158,5 +160,42 @@ describe('تحقق المُدخلات', () => {
         sizeBytes: MAX_UPLOAD_BYTES + 1,
       }).success,
     ).toBe(false)
+  })
+})
+
+/**
+ * حقل كلمة مرور داخل نموذج بلا method يعني أن ضغط الإرسال قبل ترطيب React
+ * يُنتج طلب GET أصليًا، فتظهر كلمة المرور في شريط العنوان وسجل المتصفح
+ * وسجلات الخادم وترويسة الإحالة. حدث هذا فعلًا في المتصفح، فنحرسه هنا.
+ */
+describe('نماذج كلمات المرور — منع التسريب إلى الـURL', () => {
+  function walk(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) return walk(full)
+      return entry.isFile() && full.endsWith('.tsx') ? [full] : []
+    })
+  }
+
+  const formFiles = walk('src').filter((file) =>
+    readFileSync(file, 'utf8').includes('type="password"'),
+  )
+
+  it('يوجد على الأقل نموذج واحد يحتوي كلمة مرور', () => {
+    expect(formFiles.length).toBeGreaterThan(0)
+  })
+
+  it.each(formFiles)('%s يفتح كل <form> بـ method="post"', (file) => {
+    const source = readFileSync(file, 'utf8')
+    const openings = source.match(/<form\b[^>]*>/gs) ?? []
+
+    expect(openings.length).toBeGreaterThan(0)
+    for (const opening of openings) {
+      expect(opening).toContain('method="post"')
+    }
+  })
+
+  it.each(formFiles)('%s لا يستعمل method="get"', (file) => {
+    expect(readFileSync(file, 'utf8')).not.toContain('method="get"')
   })
 })

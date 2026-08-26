@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { AlertTriangle, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ShieldAlert, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
 
@@ -111,6 +111,41 @@ export function ErrorState({
           إعادة المحاولة
         </Button>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * رفض صلاحية داخل المنشأة نفسها. نقول للمستخدم الحقيقة: الصفحة موجودة لكن
+ * دوره لا يخوّله رؤيتها. هذا يختلف عن محاولة الوصول إلى بيانات منشأة أخرى —
+ * تلك تُعامَل كـ404 حتى لا يُستدل على وجود السجل أصلًا.
+ */
+export function NoPermission({
+  title = 'لا تملك صلاحية الوصول',
+  description = 'هذه الصفحة متاحة لأدوار أخرى في منشأتك. إن كنت تحتاجها فاطلب من مالك المنشأة تعديل دورك.',
+  backHref = '/dashboard',
+  backLabel = 'العودة إلى لوحة التحكم',
+}: {
+  title?: string
+  description?: string
+  backHref?: string
+  backLabel?: string
+}) {
+  return (
+    <div
+      role="alert"
+      className="mx-auto flex max-w-md flex-col items-center justify-center px-6 py-16 text-center"
+    >
+      <div className="flex size-12 items-center justify-center rounded-full bg-warning-soft text-warning">
+        <ShieldAlert className="size-5" aria-hidden />
+      </div>
+      <h1 className="mt-4 text-lg font-semibold">{title}</h1>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+        {description}
+      </p>
+      <Button asChild variant="secondary" className="mt-6">
+        <a href={backHref}>{backLabel}</a>
+      </Button>
     </div>
   )
 }

@@ -41,8 +41,18 @@ export function RegisterForm() {
     }
   }
 
+  // method="post" ضروري رغم أن الإرسال يُعالَج في JavaScript.
+  // إن ضغط المستخدم زر الإرسال قبل اكتمال ترطيب React — وهو وارد على شبكة أو
+  // جهاز بطيء — يُرسل المتصفح النموذج أصلًا. الافتراضي GET، فتذهب كلمة المرور
+  // إلى شريط العنوان ومنه إلى سجل المتصفح وسجلات الخادم وترويسة الإحالة.
+  // POST يُبقيها في جسم الطلب فلا تُسرَّب.
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+    <form
+      method="post"
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-4"
+      noValidate
+    >
       <div>
         <Label htmlFor="name" required>
           الاسم الكامل

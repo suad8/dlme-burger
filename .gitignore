@@ -19,3 +19,6 @@ coverage
 
 # ملفات المستخدمين المرفوعة محليًا
 .storage
+
+# مخرجات بناء TypeScript المتزايد
+tsconfig.tsbuildinfo

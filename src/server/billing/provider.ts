@@ -1,4 +1,5 @@
 import 'server-only'
+import { createMoyasarProvider } from './moyasar'
 
 /**
  * طبقة الفوترة المجرّدة.
@@ -97,11 +98,12 @@ export function getBillingProvider(): BillingProvider {
 
   switch (configured) {
     case 'moyasar':
+      // الاستيراد كسول: لا نحمّل التكامل ولا نطالب بمفاتيحه إلا عند تفعيله
+      return createMoyasarProvider()
     case 'stripe':
-      // المفاتيح ستأتي من البيئة عند التنفيذ الفعلي
       throw new Error(
-        `مزوّد الدفع «${configured}» مُعلن في البيئة لكنه غير منفّذ بعد. ` +
-          'أزل BILLING_PROVIDER للعودة إلى الوضع الوهمي، أو نفّذ الواجهة.',
+        'مزوّد الدفع «stripe» مُعلن في البيئة لكنه غير منفّذ. ' +
+          'استخدم moyasar، أو أزل BILLING_PROVIDER للعودة إلى الوضع الوهمي.',
       )
     default:
       return new NoopBillingProvider()

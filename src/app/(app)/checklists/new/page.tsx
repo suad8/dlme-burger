@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { requireTenant } from '@/server/tenant'
-import { authorize } from '@/server/rbac'
+import { NoPermission } from '@/components/ui/states'
+import { can } from '@/server/rbac'
 import { TemplateBuilder } from './builder'
 
 export const metadata: Metadata = {
@@ -12,7 +13,15 @@ export const metadata: Metadata = {
 
 export default async function NewChecklistPage() {
   const ctx = await requireTenant()
-  authorize(ctx, 'checklist:create')
+  if (!can(ctx, 'checklist:create')) {
+    return (
+      <NoPermission
+        description="إنشاء قائمة تحقق يتطلب صلاحية «إنشاء قوائم التحقق». اطلب من مالك المنشأة تعديل دورك."
+        backHref="/checklists"
+        backLabel="العودة إلى قوائم التحقق"
+      />
+    )
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

@@ -2,11 +2,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { requireTenant } from '@/server/tenant'
-import { authorize } from '@/server/rbac'
+import { can } from '@/server/rbac'
 import { listActiveTemplates } from '@/server/services/inspections'
 import { listBranches } from '@/server/services/branches'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { EmptyState } from '@/components/ui/states'
+import { EmptyState, NoPermission } from '@/components/ui/states'
 import { ClipboardList } from 'lucide-react'
 import { StartInspectionForm } from './start-form'
 
@@ -17,7 +17,15 @@ export const metadata: Metadata = {
 
 export default async function NewInspectionPage() {
   const ctx = await requireTenant()
-  authorize(ctx, 'inspection:create')
+  if (!can(ctx, 'inspection:create')) {
+    return (
+      <NoPermission
+        description="بدء جولة تفتيش يتطلب صلاحية «إنشاء التفتيش». اطلب من مالك المنشأة تعديل دورك."
+        backHref="/inspections"
+        backLabel="العودة إلى التفتيش"
+      />
+    )
+  }
 
   const [templates, branches] = await Promise.all([
     listActiveTemplates(ctx),
