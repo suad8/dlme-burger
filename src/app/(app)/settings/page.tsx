@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { Building2, CreditCard, Users, ShieldCheck } from 'lucide-react'
 import { requireTenant } from '@/server/tenant'
 import { NoPermission } from '@/components/ui/states'
@@ -173,10 +174,18 @@ export default async function SettingsPage() {
       {/* الفريق */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="size-4" aria-hidden />
-            الفريق
-          </CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="size-4" aria-hidden />
+              الفريق
+            </CardTitle>
+            <Link
+              href="/settings/team"
+              className="text-sm text-primary underline-offset-4 hover:underline"
+            >
+              إدارة الفريق والدعوات
+            </Link>
+          </div>
         </CardHeader>
         <CardContent>
           <TableWrap className="border-0">
