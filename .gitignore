@@ -22,3 +22,6 @@ coverage
 
 # مخرجات بناء TypeScript المتزايد
 tsconfig.tsbuildinfo
+tests/.auth/
+test-results/
+playwright-report/

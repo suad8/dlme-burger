@@ -41,6 +41,12 @@ const config = [
     files: ['src/server/**', 'prisma/**', 'tests/**'],
     rules: { 'no-restricted-imports': 'off' },
   },
+  {
+    // اختبارات Playwright ليست React. تركيبة الـfixtures تسمّي معاملها `use`،
+    // فتظنّه قاعدة الخطّافات استدعاءً لخطّاف React خارج مكوّن.
+    files: ['tests/e2e/**', 'playwright.config.ts'],
+    rules: { 'react-hooks/rules-of-hooks': 'off' },
+  },
 ]
 
 export default config
