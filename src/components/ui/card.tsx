@@ -9,6 +9,7 @@ export function Card({
     <div
       className={cn(
         'bg-surface border border-border rounded-[var(--radius-lg)] shadow-xs',
+        '[transition:box-shadow_var(--dur-base)_var(--ease-smooth),border-color_var(--dur-base)_var(--ease-smooth)]',
         className,
       )}
       {...props}

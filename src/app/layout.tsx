@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { IBM_Plex_Sans_Arabic, Manrope } from 'next/font/google'
 import { Toaster } from 'sonner'
+import { THEME_INIT_SCRIPT } from '@/components/app/theme-toggle'
 import './globals.css'
 
 // عائلتان فقط — لا ثالثة.
@@ -58,6 +59,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ar" dir="rtl" className={`${arabic.variable} ${latin.variable}`}>
+      <head>
+        {/* يعمل قبل أول رسم فيمنع وميض الوضع الفاتح لمن اختار الداكن */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-dvh antialiased">
         {/* تخطي إلى المحتوى — شرط تنقل بلوحة المفاتيح */}
         <a

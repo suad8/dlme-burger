@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { signOut } from '@/lib/auth-client'
+import { ThemeToggle } from '@/components/app/theme-toggle'
 
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -117,7 +118,8 @@ export function AppShell({
                     aria-current={active ? 'page' : undefined}
                     title={collapsed ? item.label : undefined}
                     className={cn(
-                      'tap-target flex items-center gap-3 rounded-[var(--radius-md)] px-3 text-sm transition-colors duration-150',
+                      'tap-target flex items-center gap-3 rounded-[var(--radius-md)] px-3 text-sm',
+                      '[transition:background-color_var(--dur-fast)_var(--ease-smooth),color_var(--dur-fast)_var(--ease-smooth)]',
                       collapsed && 'justify-center px-0',
                       active
                         ? 'bg-primary-soft text-primary font-semibold'
@@ -237,6 +239,8 @@ export function AppShell({
               نطاقك: {scopedBranchCount} فرع
             </Badge>
           )}
+
+          <ThemeToggle />
 
           <Button
             variant="ghost"

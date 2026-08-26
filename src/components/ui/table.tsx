@@ -57,7 +57,11 @@ export function TR({
 }: React.HTMLAttributes<HTMLTableRowElement>) {
   return (
     <tr
-      className={cn('transition-colors hover:bg-surface-muted/40', className)}
+      className={cn(
+        'hover:bg-surface-muted/50',
+        '[transition:background-color_var(--dur-fast)_var(--ease-smooth)]',
+        className,
+      )}
       {...props}
     />
   )

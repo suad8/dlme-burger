@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 
 const badgeVariants = cva(
   'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ' +
+    '[transition:background-color_var(--dur-fast)_var(--ease-smooth)] ' +
     "whitespace-nowrap [&_svg:not([class*='size-'])]:size-3",
   {
     variants: {

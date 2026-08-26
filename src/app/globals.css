@@ -192,6 +192,212 @@
   }
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   نظام الحركة
+   منحنيات مخصّصة بدل ease الافتراضي: الافتراضي يبدو ميكانيكيًا، وهذه
+   المنحنيات تعطي إحساسًا ماديًا (تسارع سريع ثم استقرار هادئ).
+   ══════════════════════════════════════════════════════════════ */
+
+@layer base {
+  :root {
+    /* خروج سريع ودخول هادئ — للعناصر التي تدخل الشاشة */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    /* ارتداد خفيف — للأزرار والبطاقات عند التفاعل */
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* متوازن — للتنقلات العامة */
+    --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+    --dur-fast: 150ms;
+    --dur-base: 220ms;
+    --dur-slow: 420ms;
+  }
+}
+
+@layer utilities {
+  /* ── الظهور عند التمرير ────────────────────────────────────
+     يعتمد على animation-timeline حيث يُدعم، ويسقط إلى ظهور فوري
+     حيث لا يُدعم — فلا يختفي محتوى أبدًا. */
+  .reveal {
+    animation: reveal-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 55%;
+  }
+
+  @supports not (animation-timeline: view()) {
+    .reveal {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ظهور متدرّج للعناصر المتتابعة */
+  .rise {
+    animation: rise-in var(--dur-slow) var(--ease-out-expo) both;
+  }
+  .rise-1 { animation-delay: 60ms; }
+  .rise-2 { animation-delay: 120ms; }
+  .rise-3 { animation-delay: 180ms; }
+  .rise-4 { animation-delay: 240ms; }
+
+  /* ── رفع البطاقة عند التحويم ──────────────────────────────── */
+  .lift {
+    transition:
+      transform var(--dur-base) var(--ease-spring),
+      box-shadow var(--dur-base) var(--ease-smooth),
+      border-color var(--dur-base) var(--ease-smooth);
+    will-change: transform;
+  }
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+    border-color: hsl(var(--primary) / 0.28);
+  }
+
+  /* ── حدّ متوهّج يتتبّع المؤشر ───────────────────────────────
+     يعتمد على --mx/--my يضبطهما JS. بلا JS يبقى الحد ساكنًا. */
+  .glow-border {
+    position: relative;
+    isolation: isolate;
+  }
+  .glow-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: radial-gradient(
+      340px circle at var(--mx, 50%) var(--my, 0%),
+      hsl(var(--primary) / 0.45),
+      transparent 65%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-smooth);
+    z-index: -1;
+  }
+  .glow-border:hover::before {
+    opacity: 1;
+  }
+
+  /* ── تدرّج نصي هادئ للعناوين ───────────────────────────────
+     أخضر الهوية إلى كهرماني — لا بنفسجي عام. */
+  .text-gradient {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--foreground)) 0%,
+      hsl(var(--primary)) 58%,
+      hsl(var(--accent)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    /* احتياط: لو فشل القص يبقى النص مقروءًا */
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ── خلفية شفقية متحرّكة بطيئة ─────────────────────────────── */
+  .aurora {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: -10;
+  }
+  .aurora::before,
+  .aurora::after {
+    content: '';
+    position: absolute;
+    width: 58vw;
+    height: 58vw;
+    max-width: 780px;
+    max-height: 780px;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.32;
+  }
+  .aurora::before {
+    background: radial-gradient(circle, hsl(var(--primary) / 0.55), transparent 68%);
+    top: -22%;
+    inset-inline-start: -12%;
+    animation: drift-a 22s var(--ease-smooth) infinite alternate;
+  }
+  .aurora::after {
+    background: radial-gradient(circle, hsl(var(--accent) / 0.34), transparent 68%);
+    top: -10%;
+    inset-inline-end: -16%;
+    animation: drift-b 26s var(--ease-smooth) infinite alternate;
+  }
+
+  /* ── شريط متحرّك للشعارات/الوسوم ───────────────────────────── */
+  .marquee {
+    display: flex;
+    gap: 0.75rem;
+    width: max-content;
+    animation: marquee 32s linear infinite;
+  }
+  .marquee-wrap:hover .marquee {
+    animation-play-state: paused;
+  }
+
+  /* ── نبضة خفيفة للمؤشرات الحية ─────────────────────────────── */
+  .pulse-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: ping 2.2s var(--ease-out-expo) infinite;
+  }
+
+  /* ── تسطير ينمو عند التحويم ────────────────────────────────── */
+  .underline-grow {
+    background-image: linear-gradient(hsl(var(--primary)), hsl(var(--primary)));
+    background-repeat: no-repeat;
+    background-position: right bottom;
+    background-size: 0% 1.5px;
+    transition: background-size var(--dur-base) var(--ease-out-expo);
+  }
+  .underline-grow:hover {
+    background-size: 100% 1.5px;
+  }
+}
+
+@keyframes reveal-in {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(9%, 7%, 0) scale(1.14); }
+}
+
+@keyframes drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.08); }
+  to   { transform: translate3d(-8%, 10%, 0) scale(1); }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes ping {
+  0%        { transform: scale(1);   opacity: 0.55; }
+  70%, 100% { transform: scale(2.4); opacity: 0; }
+}
+
 /* احترام تفضيل تقليل الحركة — إلزامي */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -201,5 +407,39 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* الزخرفة تُطفأ بالكامل لا تُسرَّع فقط — الوميض أسوأ من السكون */
+  .aurora::before,
+  .aurora::after,
+  .marquee,
+  .pulse-dot::after {
+    animation: none !important;
+  }
+
+  /* والمحتوى يبقى ظاهرًا مهما حدث */
+  .reveal,
+  .rise {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .lift:hover {
+    transform: none !important;
+  }
+}
+
+
+/* عند الطباعة لا تمرير ولا حركة — كل المحتوى يجب أن يظهر */
+@media print {
+  .reveal,
+  .rise {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .aurora,
+  .marquee-wrap {
+    display: none !important;
   }
 }
