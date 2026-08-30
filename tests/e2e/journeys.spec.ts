@@ -125,6 +125,32 @@ test.describe('رحلة التوظيف', () => {
       .catch(() => '')
     expect(toast ?? '').toContain('لا يطابق')
 
+    // رابط السيرة الموقّع: يعمل لصاحب الصلاحية
+    const resumeHref = await page.evaluate(() => {
+      const link = document.querySelector('a[href*="/api/files"]')
+      return link?.getAttribute('href') ?? null
+    })
+    expect(resumeHref, 'لا رابط للسيرة المرفوعة').toBeTruthy()
+
+    const served = await page.goto(resumeHref!, { waitUntil: 'domcontentloaded' })
+    expect(served?.status()).toBe(200)
+    const fileHeaders = served!.headers()
+    expect(fileHeaders['content-security-policy']).toContain('sandbox')
+    expect(fileHeaders['x-content-type-options']).toBe('nosniff')
+    expect(fileHeaders['cache-control']).toContain('private')
+
+    // نفس الرابط بيد زميل بلا صلاحية توظيف: التوقيع صالح والمنشأة صحيحة،
+    // ومع ذلك لا يُقدَّم الملف — ويُردّ 404 لا 403 حتى لا يُؤكَّد وجوده
+    const colleagueContext = await browser.newContext({
+      storageState: stateFor('viewer'),
+    })
+    const colleague = await colleagueContext.newPage()
+    const denied = await colleague.goto(resumeHref!, {
+      waitUntil: 'domcontentloaded',
+    })
+    expect(denied?.status()).toBe(404)
+    await colleagueContext.close()
+
     // منشأة أخرى: ٤٠٤
     const otherContext = await browser.newContext({
       storageState: stateFor('otherOwner'),

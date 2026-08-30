@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Paperclip, Trash2, Star } from 'lucide-react'
+import { Plus, Paperclip, Trash2, Star, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea, Label } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +27,8 @@ export interface CandidateView {
   notes: string | null
   createdAt: string
   hasResume: boolean
+  resumeUrl: string | null
+  resumeName: string | null
 }
 
 const STAGES = [
@@ -281,6 +283,18 @@ function CandidateItem({
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           {candidate.notes}
         </p>
+      )}
+
+      {candidate.resumeUrl && (
+        <a
+          href={candidate.resumeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary underline-offset-4 hover:underline"
+        >
+          <FileText className="size-3.5" aria-hidden />
+          {candidate.resumeName ?? 'السيرة الذاتية'}
+        </a>
       )}
 
       {canEdit && (

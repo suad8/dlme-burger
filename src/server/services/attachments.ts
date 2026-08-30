@@ -282,9 +282,30 @@ export async function readFileForServing(
 
   const record = await prisma.attachment.findFirst({
     where: { storageKey, organizationId: ctx.organizationId },
-    select: { mimeType: true, fileName: true },
+    select: {
+      mimeType: true,
+      fileName: true,
+      candidateId: true,
+      correctiveActionId: true,
+    },
   })
   if (!record) throw new InvalidFileError('الملف غير موجود.')
+
+  /*
+   * الصلاحية تُفحص هنا أيضًا، لا عند إصدار الرابط فقط.
+   *
+   * الرابط الموقّع يُصدَر لمن يرى السجل، لكنه نصّ يمكن تمريره: زميل في نفس
+   * المنشأة لا يملك صلاحية التوظيف كان يستطيع فتح سيرة ذاتية بمجرد أن يصله
+   * الرابط خلال مدة صلاحيته. الصلاحية تُشتق من نوع المرفق كما في الحذف.
+   */
+  authorize(
+    ctx,
+    record.candidateId
+      ? 'recruitment:view'
+      : record.correctiveActionId
+        ? 'action:view'
+        : 'inspection:view',
+  )
 
   const data = await getStorageProvider().get(storageKey)
   return { data, mimeType: record.mimeType, fileName: record.fileName }

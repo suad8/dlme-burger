@@ -5,6 +5,7 @@ import { authorize } from '../rbac'
 import type { TenantContext } from '../tenant'
 import { branchFilter } from '../tenant'
 import { recordAudit } from '../audit'
+import { buildSignedUrl } from '../storage/provider'
 import { toNumber } from '@/lib/utils'
 
 /**
@@ -127,6 +128,9 @@ export interface CandidateRow {
   notes: string | null
   createdAt: Date
   hasResume: boolean
+  /** رابط موقّع قصير الأجل للسيرة الذاتية — يُعاد بناؤه مع كل تحميل للصفحة. */
+  resumeUrl: string | null
+  resumeName: string | null
 }
 
 export interface RequestDetail extends RequestRow {
@@ -169,7 +173,11 @@ export async function getRequest(
           rating: true,
           notes: true,
           createdAt: true,
-          attachments: { select: { id: true }, take: 1 },
+          attachments: {
+            select: { id: true, storageKey: true, fileName: true },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
         },
         orderBy: { createdAt: 'desc' },
       },
@@ -203,6 +211,10 @@ export async function getRequest(
       notes: c.notes,
       createdAt: c.createdAt,
       hasResume: c.attachments.length > 0,
+      resumeUrl: c.attachments[0]
+        ? buildSignedUrl(c.attachments[0].storageKey)
+        : null,
+      resumeName: c.attachments[0]?.fileName ?? null,
     })),
   }
 }

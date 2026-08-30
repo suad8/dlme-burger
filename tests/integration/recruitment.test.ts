@@ -11,7 +11,11 @@ import {
   RecruitmentInputError,
   RecruitmentNotFoundError,
 } from '@/server/services/recruitment'
-import { uploadAttachment, listAttachments } from '@/server/services/attachments'
+import {
+  uploadAttachment,
+  listAttachments,
+  readFileForServing,
+} from '@/server/services/attachments'
 import { ForbiddenError } from '@/server/rbac'
 
 /** PNG صالح ١×١ — لاختبار مسار المرفقات بمحتوى حقيقي لا بامتداد. */
@@ -330,5 +334,41 @@ describe('التوظيف — السيرة الذاتية', () => {
         data: PNG,
       }),
     ).rejects.toThrow()
+  })
+})
+
+describe('التوظيف — الرابط الموقّع لا يتجاوز الصلاحية', () => {
+  it('زميل في نفس المنشأة بلا صلاحية توظيف لا يفتح السيرة برابط مسرّب', async () => {
+    const owner = await contextFor(DEMO.ownerA)
+    const request = await makeRequest(owner, ' تسريب الرابط')
+    const candidate = await addCandidate(owner, {
+      requestId: request.id,
+      fullName: 'مرشّح اختبار التسريب',
+      phone: null,
+      email: null,
+      notes: null,
+    })
+
+    await uploadAttachment(owner, {
+      target: { kind: 'candidate', candidateId: candidate.id },
+      fileName: 'cv.png',
+      mimeType: 'image/png',
+      data: PNG,
+    })
+
+    const stored = await prisma.attachment.findFirstOrThrow({
+      where: { candidateId: candidate.id },
+      select: { storageKey: true },
+    })
+
+    // المالك يقرأ الملف بلا مشكلة
+    const asOwner = await readFileForServing(owner, stored.storageKey)
+    expect(asOwner.mimeType).toBe('image/png')
+
+    // مُطّلع في نفس المنشأة: المفتاح صحيح والمنشأة صحيحة، لكن لا صلاحية
+    const viewer = contextWithRole(owner, 'VIEWER')
+    await expect(
+      readFileForServing(viewer, stored.storageKey),
+    ).rejects.toBeInstanceOf(ForbiddenError)
   })
 })
