@@ -442,4 +442,50 @@
   .marquee-wrap {
     display: none !important;
   }
+
+  /*
+   * ورقة التقرير.
+   *
+   * هيكل التطبيق (القائمة الجانبية، الشريط العلوي، شريط الجوال) لا مكان له
+   * على الورق. نخفيه بدل بناء تخطيط ثانٍ: الصفحة نفسها هي المصدر، فلا يتباعد
+   * ما يُطبع عمّا يُعرض.
+   */
+  /*
+   * `:not(.print-sheet *)` ضروري: ورقة التقرير نفسها تحوي <header> ترويسة
+   * المنشأة. بدونه كانت القاعدة تخفي ترويسة التقرير مع شريط التطبيق، فتخرج
+   * الورقة بلا اسم المنشأة ولا رقمها الضريبي.
+   */
+  body:has(.print-sheet) aside:not(.print-sheet *),
+  body:has(.print-sheet) header:not(.print-sheet *),
+  body:has(.print-sheet) nav:not(.print-sheet *),
+  body:has(.print-sheet) [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  body:has(.print-sheet) main,
+  body:has(.print-sheet) main > * {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .print-sheet {
+    max-width: none !important;
+    color: #000;
+    background: #fff;
+  }
+
+  /* الصف لا يُقطع بين صفحتين، ورأس الجدول يتكرّر في كل صفحة */
+  .print-table thead {
+    display: table-header-group;
+  }
+  .print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
 }

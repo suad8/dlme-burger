@@ -175,3 +175,63 @@ test.describe('التقارير', () => {
     await viewerContext.close()
   })
 })
+
+test.describe('نسخة التقرير للطباعة', () => {
+  test.use({ storageState: stateFor('owner') })
+
+  test('ورقة كاملة بترويسة المنشأة، وهيكل التطبيق لا يُطبع', async ({
+    page,
+    browser,
+  }) => {
+    await page.goto('/reports', { waitUntil: 'domcontentloaded' })
+
+    const printLink = page.locator('a[href^="/reports/print"]').first()
+    await expect(printLink).toBeVisible()
+    await printLink.click()
+    await page.waitForURL('**/reports/print**')
+    await page.waitForTimeout(600)
+
+    await page.emulateMedia({ media: 'print' })
+
+    // ترويسة المنشأة جزء من الورقة ويجب أن تبقى ظاهرة عند الطباعة. قاعدة
+    // تخفي كل <header> كانت تبتلعها، فتخرج الورقة بلا اسم المنشأة.
+    const sheetHeader = page.locator('.print-sheet header').first()
+    await expect(sheetHeader).toBeVisible()
+
+    const visibility = await page.evaluate(() => {
+      const display = (element: Element | null) =>
+        element ? getComputedStyle(element).display : 'missing'
+      return {
+        appSidebar: display(document.querySelector('aside:not(.print-sheet *)')),
+        appHeader: display(document.querySelector('header:not(.print-sheet *)')),
+        printButton: display(document.querySelector('.print\\:hidden')),
+      }
+    })
+
+    expect(visibility.appSidebar).not.toBe('block')
+    expect(visibility.appHeader).not.toBe('block')
+    expect(visibility.printButton).not.toBe('block')
+
+    // PDF حقيقي: خطوط مضمّنة ونص مرسوم، لا صورة صفحة
+    const pdf = await page.pdf({ format: 'A4', printBackground: true })
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
+    expect(pdf.length).toBeGreaterThan(5_000)
+
+    const latin = pdf.toString('latin1')
+    expect(latin, 'الخط غير مضمّن').toMatch(/\/FontFile/)
+    expect(latin, 'الصفحة صورة لا نص').not.toMatch(/\/Subtype\s*\/Image/)
+
+    // المُطّلع لا يملك report:export فلا نسخة طباعة له
+    const viewerContext = await browser.newContext({
+      storageState: stateFor('viewer'),
+    })
+    const viewer = await viewerContext.newPage()
+    await viewer.goto('/reports/print?report=branch-performance&period=30', {
+      waitUntil: 'domcontentloaded',
+    })
+    // شاشة رفض واضحة لا صفحة خطأ ٥٠٠
+    await expect(viewer.getByText('لا تملك صلاحية الوصول')).toBeVisible()
+    expect(await viewer.content()).not.toContain('أُصدر في')
+    await viewerContext.close()
+  })
+})

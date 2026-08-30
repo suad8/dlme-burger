@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { Download, ChartNoAxesColumn } from 'lucide-react'
+import Link from 'next/link'
+import { Download, Printer, ChartNoAxesColumn } from 'lucide-react'
 import { requireTenant } from '@/server/tenant'
 import { can } from '@/server/rbac'
 import { REPORTS, buildReport, type ReportKey } from '@/server/services/reports'
@@ -47,6 +48,7 @@ export default async function ReportsPage({
   const exportable = can(ctx, 'report:export')
 
   const exportHref = `/api/reports/${key}?period=${period}`
+  const printHref = `/reports/print?report=${key}&period=${period}`
 
   return (
     <div className="space-y-6">
@@ -64,13 +66,22 @@ export default async function ReportsPage({
         <div className="flex flex-wrap items-center gap-2">
           <PeriodTabs current={period} />
           {exportable ? (
-            <Button asChild size="sm">
-              {/* التصدير عبر مسار خادمي يعيد فرض الصلاحية — لا يُبنى في المتصفح */}
-              <a href={exportHref} download>
-                <Download className="size-4" aria-hidden />
-                صدّر CSV
-              </a>
-            </Button>
+            <>
+              <Button asChild size="sm" variant="secondary">
+                {/* نسخة الطباعة صفحة خادمية تعيد فرض نفس صلاحية التصدير */}
+                <Link href={printHref}>
+                  <Printer className="size-4" aria-hidden />
+                  نسخة للطباعة
+                </Link>
+              </Button>
+              <Button asChild size="sm">
+                {/* التصدير عبر مسار خادمي يعيد فرض الصلاحية — لا يُبنى في المتصفح */}
+                <a href={exportHref} download>
+                  <Download className="size-4" aria-hidden />
+                  صدّر CSV
+                </a>
+              </Button>
+            </>
           ) : (
             <Badge tone="neutral">التصدير غير متاح لدورك</Badge>
           )}
